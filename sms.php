@@ -60,13 +60,26 @@
     $dtOrder = $_POST["dtOrder"];
     $runNum = $_POST["runNum"];
     $billGroup = $_POST["billGroupS"];
+
+    $dtOrderQuery = ((isset($dtOrder)) and !(empty($dtOrder)))? "and sh.ORDERDATE ='$dtOrder'" : "";
+
+    $runNumQuery = "";
+    if($runNum == "(All)")
+      $runNumQuery = "";
+    else if ($runNum == "(NoRunNumber)")
+      $runNumQuery = "and cm.ADDITIONALFIELD_8 is null";
+    else
+      $runNumQuery = "and cm.ADDITIONALFIELD_8 = '$runNum'";
+
+    $billGroupQuery = $billGroup=="(All)" ? "" : " and cm.ADDITIONALFIELD_47 = '$billGroup' ";
+  
     $sql = "select cm.customer, sh.orderdate, cm.additionalfield_8 as runNum, 
             cm.additionalfield_47 as billingGroup, sh.orderstatus, 
             sh.readinessstatus,sh.ordercity, sh.requireddate, sh.orderaddress1
             from CUSTOMERMASTER cm inner join SALESHEADER sh on 
-            cm.CUSTOMER = sh.CUSTOMER and cm.CUSTOMERSTATUS='Active' and 
-            cm.additionalfield_8 = '607' and cm.additionalfield_47='S' 
-            and sh.orderdate = '07.06.2018'";
+            cm.CUSTOMER = sh.CUSTOMER and cm.CUSTOMERSTATUS='Active' 
+            $dtOrderQuery $runNumQuery $billGroupQuery order by cm.CUSTOMER";
+
     $dbh = dbConnect();
     $result = ibase_query($dbh, $sql) or die(ibase_errmsg());
     dbClose($dbh);
@@ -203,16 +216,16 @@ EOD;
           <button class="btn btn-primary" type="button" data-toggle="collapse" 
             data-target="#collapseSales" aria-expanded="false" 
             aria-controls="collapseSales" id="btnSales">
-              SMS by Sales
+              Search by Sales
           </button>
           <button class="btn btn-primary" type="button" data-toggle="collapse" 
             data-target="#collapseCusts" aria-expanded="false" 
             aria-controls="collapseCusts" id="btnCusts">
-              SMS by Customers
+              Search by Customers
           </button>
         </p>
         <div class="collapse" id="collapseSales">
-          <div class="card card-body">
+          <div class="card card-body mb-3">
             <h5 class="card-title text-success">Search by Sales</h5>
             <div class="row">
               <div class="col-sm-2">
@@ -247,7 +260,7 @@ EOD;
           </div>
         </div>
         <div class="collapse" id="collapseCusts">
-          <div class="card card-body">
+          <div class="card card-body mb-3">
             <h5 class="card-title text-success">Search by Customers</h5>
             <div class="row">
               <div class="col-sm-4">
