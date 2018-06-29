@@ -38,9 +38,9 @@
 
   function getBillingGroups() {
     if( ! isset($_SESSION["billingGroups"])) {
-      $sql = "select distinct cm.ADDITIONALFIELD_47 as billGroup 
+      $sql = "select distinct cm.ADDITIONALFIELD_47 as BILLGROUP 
                 from CUSTOMERMASTER cm where cm.customerstatus='Active' 
-                order by billGroup";
+                order by BILLGROUP";
       $dbh = dbConnect();
       $result = ibase_query($dbh, $sql) or die(ibase_errmsg());
       dbClose($dbh);
@@ -55,6 +55,110 @@
       echo "<option>$billG</option>";
     }
   }
+
+  function searchSales() {
+    $dtOrder = $_POST["dtOrder"];
+    $runNum = $_POST["runNum"];
+    $billGroup = $_POST["billGroupS"];
+    $sql = "select cm.customer, sh.orderdate, cm.additionalfield_8 as runNum, 
+            cm.additionalfield_47 as billingGroup, sh.orderstatus, 
+            sh.readinessstatus,sh.ordercity, sh.requireddate, sh.orderaddress1
+            from CUSTOMERMASTER cm inner join SALESHEADER sh on 
+            cm.CUSTOMER = sh.CUSTOMER and cm.CUSTOMERSTATUS='Active' and 
+            cm.additionalfield_8 = '607' and cm.additionalfield_47='S' 
+            and sh.orderdate = '07.06.2018'";
+    $dbh = dbConnect();
+    $result = ibase_query($dbh, $sql) or die(ibase_errmsg());
+    dbClose($dbh);
+
+    $table = <<<EOD
+    <table id="table" style="width:100%">
+      <thead>
+        <th>Customer</th>
+        <th>OrderDate</th>
+        <th>RunNum</th>
+        <th>BillingGroup</th>
+        <th>OrderStatus</th>
+        <th>ReadinessState</th>
+        <th>OrderCity</th>
+        <th>OrderAddress1</th>
+      </thead>
+      <tbody>
+EOD;
+    while($row = ibase_fetch_object($result)) {
+      $table .= "<tr>
+                  <td>$row->CUSTOMER</td>
+                  <td>$row->ORDERDATE</td>
+                  <td>$row->RUNNUM</td>
+                  <td>$row->BILLINGGROUP</td>
+                  <td>$row->ORDERSTATUS</td>
+                  <td>$row->READINESSSTATE</td>
+                  <td>$row->ORDERCITY</td>
+                  <td>$row->ORDERADDRESS1</td>
+                </tr>";
+    }
+    $table .= <<<EOD
+      </tbody>
+    </table>
+EOD;
+    if($_POST["submit"] == "searchSales") {
+      return $table; 
+    }
+  }
+
+  function searchCusts() {
+    $dtOrder = $_POST["dtOrder"];
+    $runNum = $_POST["runNum"];
+    $billGroup = $_POST["billGroupS"];
+    $sql = "select cm.customer, sh.orderdate, cm.additionalfield_8 as runNum, 
+            cm.additionalfield_47 as billingGroup, sh.orderstatus, 
+            sh.readinessstatus,sh.ordercity, sh.requireddate, sh.orderaddress1
+            from CUSTOMERMASTER cm inner join SALESHEADER sh on 
+            cm.CUSTOMER = sh.CUSTOMER and cm.CUSTOMERSTATUS='Active' and 
+            cm.additionalfield_8 = '607' and cm.additionalfield_47='S'"; 
+    $dbh = dbConnect();
+    $result = ibase_query($dbh, $sql) or die(ibase_errmsg());
+    dbClose($dbh);
+
+    $table = <<<EOD
+    <table id="table" style="width:100%">
+      <thead>
+        <th>Customer</th>
+        <th>RunNum</th>
+        <th>BillingGroup</th>
+      </thead>
+      <tbody>
+EOD;
+    while($row = ibase_fetch_object($result)) {
+      $table .= "<tr>
+                  <td>$row->CUSTOMER</td>
+                  <td>$row->RUNNUM</td>
+                  <td>$row->BILLINGGROUP</td>
+                </tr>";
+    }
+    $table .= <<<EOD
+      </tbody>
+    </table>
+EOD;
+    if($_POST["submit"] == "searchCusts") {
+      return $table; 
+    }
+  }
+
+  function start() {
+    if($_SERVER["REQUEST_METHOD"] == "POST") {
+      switch ($_POST["submit"]) {
+        case "searchSales":
+          searchSales();
+          break;
+        case "searchCusts":
+          searchCusts();
+          break;
+      }
+    }
+  }
+
+  start();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -66,10 +170,13 @@
       "sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" 
       crossorigin="anonymous"></script>
     <script src=
-     "https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"      integrity=
-      "sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49"       crossorigin="anonymous"></script>
+     "https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" 
+      integrity=
+      "sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" 
+      crossorigin="anonymous"></script>
     <link rel="stylesheet" href=
-      "https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css"      integrity=
+      "https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css"
+       integrity=
       "sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB" 
       crossorigin="anonymous">
     <script src=
@@ -77,10 +184,14 @@
       integrity=
       "sha384-smHYKdLADwkXOn1EmN1qk/HfnUcbVRZyYmZ4qpPea6sjB/pTJ0euyQp0Mk8ck+5T" 
       crossorigin="anonymous"></script>
-
+    <script type="text/javascript" charset="utf8" 
+      src="https://cdn.datatables.net/1.10.19/js/jquery.dataTables.min.js"></script>
     <link rel="stylesheet" href=
       "https://use.fontawesome.com/releases/v5.1.0/css/all.css" integrity=
-      "sha384-lKuwvrZot6UHsBSfcMvOkWwlCMgc0TaWr+30HWe3a4ltaBwTZhyTEggF5tJv8tbt"       crossorigin="anonymous">
+      "sha384-lKuwvrZot6UHsBSfcMvOkWwlCMgc0TaWr+30HWe3a4ltaBwTZhyTEggF5tJv8tbt" 
+      crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" href=
+      "https://cdn.datatables.net/1.10.19/css/jquery.dataTables.css">
   </head>
   <body>
     <div class="container">
@@ -107,8 +218,8 @@
               <div class="col-sm-2">
                 <label for="dtOrder">Order Date: </label>
                 <input type="text" class="form-control form-control-sm"
-                  name="dtOrder" id="dtOrder" placeholder="dd-mm-yyyy"
-                  value=<?= $_POST["dtOrder"] ?? date("d-m-Y") ?>>
+                  name="dtOrder" id="dtOrder" placeholder="dd.mm.yyyy"
+                  value=<?= $_POST["dtOrder"] ?? date("d.m.Y") ?>>
               </div>
               <div class="col-sm-2">
                 <label for="runNum">Run Number</label>
@@ -124,10 +235,11 @@
                   <?php getBillingGroups() ?>
                 </select>
               </div>
+            </div>
+            <div class="row mt-3">
               <div class="col-sm-3">
-                <label for="searchSales">Start Search</label>
                 <button type="submit" class="btn btn-info align-bottom" 
-                  name="searchSales" value="searchSales">
+                  id="searchSales" name="submit" value="searchSales">
                   Search by Sales
                 </button>
               </div>
@@ -147,20 +259,22 @@
                 <label for="billGroupC">Billing Group</label>
                 <select class="form-control form-control-sm"
                   name="billGroupC" id="billGroupC">
-                  <option>Billing Group One</option>
-                  <option>Billing Group Two</option>
+                    <?php getBillingGroups() ?>
                 </select>
               </div>
+            </div>
+            <div class="row mt-3">
               <div class="col-sm-3">
-                <label for="searchCusts">Start Search</label>
                 <button type="submit" class="btn btn-info align-bottom" 
-                  name="searchCusts" value="searchCusts">
+                  id="searchCusts" name="submit" value="searchCusts">
                   Search by Customers
                 </button>
               </div>
             </div>
           </div>
         </div>
+        <?= searchSales() ?>
+        <?= searchCusts() ?>
       </form>
     </div>
     <script>
@@ -171,6 +285,7 @@
         $("#btnCusts").click(function(){
           $("#collapseSales").removeClass("show");
         });
+        $('#table').DataTable();
       });
     </script>
   </body>
