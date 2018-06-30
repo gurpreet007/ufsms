@@ -32,11 +32,13 @@
       $_SESSION["runNums"] = $runNums;
     }
     foreach ($_SESSION["runNums"] as $runNum) {
-      echo "<option>$runNum</option>";
+      echo sprintf("<option %s>%s</option>", 
+        $_POST["runNum"]==$runNum?"selected='selected'":"",
+        $runNum);
     }
   }
 
-  function getBillingGroups() {
+  function getBillingGroups($selGroup) {
     if( ! isset($_SESSION["billingGroups"])) {
       $sql = "select distinct cm.ADDITIONALFIELD_47 as BILLGROUP 
                 from CUSTOMERMASTER cm where cm.customerstatus='Active' 
@@ -52,16 +54,21 @@
       $_SESSION["billingGroups"] = $billGroups;
     }
     foreach ($_SESSION["billingGroups"] as $billG) {
-      echo "<option>$billG</option>";
+      echo sprintf("<option %s>%s</option>",
+        $selGroup==$billG?"selected='selected'":"",
+        $billG);
     }
   }
 
   function searchSales() {
+    if(!isset($_POST["submit"]) || $_POST["submit"] != "searchSales")
+      return;
     $dtOrder = $_POST["dtOrder"];
     $runNum = $_POST["runNum"];
     $billGroup = $_POST["billGroupS"];
 
-    $dtOrderQuery = ((isset($dtOrder)) and !(empty($dtOrder)))? "and sh.ORDERDATE ='$dtOrder'" : "";
+    $dtOrderQuery = ((isset($dtOrder)) and !(empty($dtOrder)))? 
+      "and sh.ORDERDATE ='$dtOrder'" : "";
 
     $runNumQuery = "";
     if($runNum == "(All)")
@@ -71,9 +78,15 @@
     else
       $runNumQuery = "and cm.ADDITIONALFIELD_8 = '$runNum'";
 
-    $billGroupQuery = $billGroup=="(All)" ? "" : " and cm.ADDITIONALFIELD_47 = '$billGroup' ";
+    $billGroupQuery = $billGroup=="(All)" ? 
+      "" : "and cm.ADDITIONALFIELD_47 = '$billGroup'";
   
-    $sql = "select cm.customer, sh.orderdate, cm.additionalfield_8 as runNum, 
+    #magic for displaying date in dd.mm.yyyy format
+    #substring(100+extract(day from sh.orderdate) from 2 for 2)||'.'||
+    #substring(100+extract(month from sh.orderdate) from 2 for 2)||'.'||
+    #extract(year from sh.orderdate) as ORDERDATE,
+    $sql = "select cm.customer, sh.ORDERDATE,
+            cm.additionalfield_8 as runNum, 
             cm.additionalfield_47 as billingGroup, sh.orderstatus, 
             sh.readinessstatus,sh.ordercity, sh.requireddate, sh.orderaddress1
             from CUSTOMERMASTER cm inner join SALESHEADER sh on 
@@ -105,7 +118,7 @@ EOD;
                   <td>$row->RUNNUM</td>
                   <td>$row->BILLINGGROUP</td>
                   <td>$row->ORDERSTATUS</td>
-                  <td>$row->READINESSSTATE</td>
+                  <td>$row->READINESSSTATUS</td>
                   <td>$row->ORDERCITY</td>
                   <td>$row->ORDERADDRESS1</td>
                 </tr>";
@@ -114,21 +127,28 @@ EOD;
       </tbody>
     </table>
 EOD;
-    if($_POST["submit"] == "searchSales") {
-      return $table; 
-    }
+    return $table; 
   }
 
   function searchCusts() {
-    $dtOrder = $_POST["dtOrder"];
-    $runNum = $_POST["runNum"];
+    if(!isset($_POST["submit"]) || $_POST["submit"] != "searchCusts")
+      return;
+
+    $cust = $_POST["custName"];
+    $custQuery = sprintf("and upper(cm.CUSTOMER) like UPPER('%%%s%%')", 
+                  str_replace(" ","%",$cust));
+
     $billGroup = $_POST["billGroupS"];
-    $sql = "select cm.customer, sh.orderdate, cm.additionalfield_8 as runNum, 
-            cm.additionalfield_47 as billingGroup, sh.orderstatus, 
-            sh.readinessstatus,sh.ordercity, sh.requireddate, sh.orderaddress1
-            from CUSTOMERMASTER cm inner join SALESHEADER sh on 
-            cm.CUSTOMER = sh.CUSTOMER and cm.CUSTOMERSTATUS='Active' and 
-            cm.additionalfield_8 = '607' and cm.additionalfield_47='S'"; 
+    $billGroupQuery = $billGroup=="(All)" ? 
+      "" : "and cm.ADDITIONALFIELD_47 = '$billGroup'";
+
+    $sql = "select cm.CUSTOMER, cm.ADDITIONALFIELD_47 as BILLGROUP, 
+            coalesce(cm.ADDITIONALFIELD_8, '(None)') AS RUNNUM,
+            cm.CUSTOMERCITY, cm.CUSTOMERMOBILE
+            from CUSTOMERMASTER cm
+            where cm.CUSTOMERSTATUS='Active' 
+            $custQuery $billGroupQuery";
+
     $dbh = dbConnect();
     $result = ibase_query($dbh, $sql) or die(ibase_errmsg());
     dbClose($dbh);
@@ -139,6 +159,8 @@ EOD;
         <th>Customer</th>
         <th>RunNum</th>
         <th>BillingGroup</th>
+        <th>City</th>
+        <th>Mobile</th>
       </thead>
       <tbody>
 EOD;
@@ -146,28 +168,20 @@ EOD;
       $table .= "<tr>
                   <td>$row->CUSTOMER</td>
                   <td>$row->RUNNUM</td>
-                  <td>$row->BILLINGGROUP</td>
+                  <td>$row->BILLGROUP</td>
+                  <td>$row->CUSTOMERCITY</td>
+                  <td>$row->CUSTOMERMOBILE</td>
                 </tr>";
     }
     $table .= <<<EOD
       </tbody>
     </table>
 EOD;
-    if($_POST["submit"] == "searchCusts") {
-      return $table; 
-    }
+    return $table; 
   }
 
   function start() {
     if($_SERVER["REQUEST_METHOD"] == "POST") {
-      switch ($_POST["submit"]) {
-        case "searchSales":
-          searchSales();
-          break;
-        case "searchCusts":
-          searchCusts();
-          break;
-      }
     }
   }
 
@@ -232,7 +246,7 @@ EOD;
                 <label for="dtOrder">Order Date: </label>
                 <input type="text" class="form-control form-control-sm"
                   name="dtOrder" id="dtOrder" placeholder="dd.mm.yyyy"
-                  value=<?= $_POST["dtOrder"] ?? date("d.m.Y") ?>>
+                  value="<?= $_POST["dtOrder"] ?? date("d.m.Y") ?>">
               </div>
               <div class="col-sm-2">
                 <label for="runNum">Run Number</label>
@@ -245,7 +259,7 @@ EOD;
                 <label for="billGroupS">Billing Group</label>
                 <select class="form-control form-control-sm"
                   name="billGroupS" id="billGroupS">
-                  <?php getBillingGroups() ?>
+                  <?php getBillingGroups($_POST["billGroupS"]??"") ?>
                 </select>
               </div>
             </div>
@@ -266,13 +280,14 @@ EOD;
               <div class="col-sm-4">
                 <label for="dtOrder">Customer Search </label>
                 <input type="text" class="form-control form-control-sm"
-                  name="custName" id="custName" placeholder="Customer Search">
+                  name="custName" id="custName" placeholder="Customer Search"
+                  value="<?= $_POST["custName"]??"" ?>">
               </div>
               <div class="col-sm-5">
                 <label for="billGroupC">Billing Group</label>
                 <select class="form-control form-control-sm"
                   name="billGroupC" id="billGroupC">
-                    <?php getBillingGroups() ?>
+                    <?php getBillingGroups($_POST["billGroupC"]??"") ?>
                 </select>
               </div>
             </div>
