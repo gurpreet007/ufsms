@@ -58,7 +58,7 @@ EOD;
     return $mac;
   }
 
-  function sendMessage($msg, $mobs) {
+  function sendMessage($msg, $data) {
     $action = "/v2/sms/";
     $crl = curl_init("https://api.smsglobal.com".$action);
     $header = [ 'Content-type: application/json',
@@ -66,6 +66,7 @@ EOD;
                 'Authorization: '. getAuthHTTPHeader("POST", $action)];
     curl_setopt($crl, CURLOPT_HTTPHEADER, $header);
 
+    $mobs = array_unique(array_column($data, 1));
     $data = [ 
               'destinations'  => $mobs,
               'origin'        => 'test', 
@@ -78,10 +79,14 @@ EOD;
     curl_setopt($crl, CURLOPT_RETURNTRANSFER, true);
     $rest = curl_exec($crl) or die(curl_error($crl));
     curl_close($crl);
-    if(strpos($rest, "authentication failed")) 
+    if(strpos($rest, "authentication failed")) {
       flash($rest,"alert-danger");
-    else 
+      return false;
+    }
+    else {
       flash(count($mobs)." Messages Sent","alert-success");
+      return true;
+    }
   }
 
   function getRunNums() {
@@ -149,7 +154,7 @@ EOD;
     #substring(100+extract(day from sh.orderdate) from 2 for 2)||'.'||
     #substring(100+extract(month from sh.orderdate) from 2 for 2)||'.'||
     #extract(year from sh.orderdate) as ORDERDATE,
-    $sql = "select cm.CUSTOMER, sh.ORDERNUMBER, sh.ORDERDATE,
+    $sql = "select cm.CUSTOMER, cm.CUSTOMERMOBILE, sh.ORDERNUMBER, sh.ORDERDATE,
             cm.ADDITIONALFIELD_8 as RUNNUM, 
             cm.ADDITIONALFIELD_47 as BILLINGGROUP, sh.ORDERSTATUS, 
             sh.READINESSSTATUS, sh.ORDERCITY, sh.REQUIREDDATE, 
@@ -166,6 +171,7 @@ EOD;
     while($row = ibase_fetch_object($result)) {
       $data[] = [
                   $row->CUSTOMER,
+                  $row->CUSTOMERMOBILE,
                   $row->ORDERNUMBER,
                   $row->ORDERDATE,
                   $row->RUNNUM,
@@ -177,7 +183,8 @@ EOD;
                 ];
     }
     ibase_free_result($result);
-    $_SESSION["headings"] = [ "Customer", "OrderNumber", "OrderDate", "RunNum",
+    $_SESSION["headings"] = [ "Customer", "CustomerMobile","OrderNumber", 
+                              "OrderDate", "RunNum",
                               "BillingGroup", "OrderStatus", "ReadinessStatus",
                               "OrderCity", "OrderAddress1",];
     $_SESSION["data"] = $data;
@@ -192,7 +199,8 @@ EOD;
     $billGroupQuery = $billGroup=="(All)" ? 
       "" : "and cm.ADDITIONALFIELD_47 = '$billGroup'";
 
-    $sql = "select cm.CUSTOMER, cm.ADDITIONALFIELD_47 as BILLGROUP, 
+    $sql = "select cm.CUSTOMER, cm.CUSTOMERMOBILE, 
+            cm.ADDITIONALFIELD_47 as BILLGROUP, 
             coalesce(cm.ADDITIONALFIELD_8, '(None)') AS RUNNUM,
             cm.CUSTOMERCITY, cm.CUSTOMERMOBILE
             from CUSTOMERMASTER cm
@@ -206,6 +214,7 @@ EOD;
     while($row = ibase_fetch_object($result)) {
       $data[] = [
                   $row->CUSTOMER,
+                  $row->CUSTOMERMOBILE,
                   $row->RUNNUM,
                   $row->BILLGROUP,
                   $row->CUSTOMERCITY,
@@ -213,7 +222,7 @@ EOD;
     }
     ibase_free_result($result);
 
-    $_SESSION["headings"] = [ "Customer", "RunNum", "BillingGroup", "City",];
+    $_SESSION["headings"] = [ "Customer", "CustomerMobile", "RunNum", "BillingGroup", "City",];
     $_SESSION["data"] = $data;
     $_SESSION["type"] = "searchCusts";
     return $data;
@@ -287,25 +296,43 @@ EOD;
     flash("Template Saved","alert-success");
   } 
 
-  function getMobs($rows) {
-    $mobs = [];
-    $prefix = "select CUSTOMERMASTER.CUSTOMERMOBILE from CUSTOMERMASTER ".
-              "inner join ( select 'xxxxxxx' as CUSTOMER from RDB\$DATABASE ";
-    $suffix = ") as x on CUSTOMERMASTER.CUSTOMER = x.CUSTOMER";
-    $cust = array_column($rows, 0);
-    $custLines = array_map(function($v){
-      return "union all select '${v}' from RDB\$DATABASE"; }, $cust);
-    $sql = $prefix.implode(" ",$custLines).$suffix;
-    
+  function makeLog($msg, $data) {
     $dbh = dbConnect();
-    $result = ibase_query($dbh, $sql) or die(ibase_errmsg());
-    dbClose($dbh);
-    while($row = ibase_fetch_object($result)) {
-      $mobs[] = $row->CUSTOMERMOBILE;
+
+    #get unique id to be used in MSG and RCP tables
+    $msgid = ibase_gen_id ("UF_GEN_SMS_LOG_MSGID", 1, $dbh);
+
+    $sql = sprintf("insert into UF_SMS_LOG_MSG values
+            ('%s','%s', timestamp 'now', '')", $msgid, $msg);
+    #prepared query to be used repeatedly in loop
+    $qh = ibase_prepare("insert into UF_SMS_LOG_RCP values(
+            next value for UF_GEN_SMS_LOG_RCPID, ?, ?, ?)");
+
+    #start a new transaction
+    $tr = ibase_trans($dbh);
+
+    #insert new row in msg table
+    $log_res  =  ibase_query($dbh, $sql);
+
+    #insert rows for each cust in rcp table
+    foreach($data as $row) {
+      $cust = $row[0];
+      $mob = $row[1];
+      $log_res = $log_res && ibase_execute($qh, $msgid, $cust, $mob);
+      if(!$log_res) 
+        break;
     }
-    ibase_free_result($result);
-    $mobs = array_unique($mobs);
-    return $mobs;
+
+    if(!$log_res) {
+      ibase_rollback($tr);
+      flash("Cannot log details", "alert-danger");
+    }
+    else {
+      ibase_commit($tr);
+    }
+    
+    ibase_free_query($qh);
+    dbClose($dbh);
   }
 
   function start() {
@@ -320,10 +347,9 @@ EOD;
             useTemp(addslashes($_POST["selTemplate"]));
             break;
           case "btnSendMsg":
-            if(isset($_SESSION["data"]) 
-                && !empty($_POST["smsContent"])) {
-              $mobs = getMobs($_SESSION["data"]);
-              sendMessage($_POST["smsContent"], $mobs);
+            if(isset($_SESSION["data"]) && !empty($_POST["smsContent"])) {
+              if(sendMessage($_POST["smsContent"], $_SESSION["data"]))
+                makeLog($_POST["smsContent"], $_SESSION["data"]);
             }
             break;
         }
@@ -407,6 +433,7 @@ EOD;
               Search by Customers <i class="fas fa-address-card"></i>
 
           </button>
+          <a href="#" class="badge badge-light">Reports</a>
         </p>
         <div class="collapse" id="collapseSales">
           <div class="card card-body mb-3">
@@ -526,7 +553,11 @@ EOD;
           "scrollX":        true,
           "scrollY":        "400px",
           "scrollCollapse": true,
-          "paging":         false
+          "paging":         false,
+          "columnDefs": [{
+                          "targets":[1],
+                          "visible": false
+                        }]
         });
       });
       function formSubmit(cust) {
