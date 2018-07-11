@@ -158,7 +158,7 @@ EOD;
             cm.ADDITIONALFIELD_8 as RUNNUM, 
             cm.ADDITIONALFIELD_47 as BILLINGGROUP, sh.ORDERSTATUS, 
             sh.READINESSSTATUS, sh.ORDERCITY, sh.REQUIREDDATE, 
-            sh.ORDERADDRESS1, cm.CUSTOMERMOBILE
+            sh.ORDERADDRESS1
             from CUSTOMERMASTER cm inner join SALESHEADER sh on 
             cm.CUSTOMER = sh.CUSTOMER and cm.CUSTOMERSTATUS='Active' 
             $dtOrderQuery $runNumQuery $billGroupQuery order by cm.CUSTOMER";
@@ -335,6 +335,54 @@ EOD;
     dbClose($dbh);
   }
 
+  function downloadFile($file) {
+    if (file_exists($file)) {
+      header('Content-Description: File Transfer');
+      header('Content-Type: application/octet-stream');
+      header('Content-Disposition: attachment; filename="'.basename($file).'"');
+      header('Expires: 0');
+      header('Cache-Control: must-revalidate');
+      header('Pragma: public');
+      header('Content-Length: ' . filesize($file));
+      readfile($file);
+      unlink($file);
+    }
+  }
+
+  function createReport() {
+    include_once("xlsxwriter.class.php");
+    $file = "sms-report.xlsx";
+    $header = [
+                'Customer'=>'string', 
+                'Msg'=>'string',
+                'Mob'=>'string',
+                'Dt'=>'datetime',
+                'Usr'=>'string',
+              ];
+    $selCusts = [];
+    $dbh = dbConnect();
+    $sql = "select cust,msg,mob,dt,usr from UF_SMS_LOG_MSG msg 
+            inner join UF_SMS_LOG_RCP rcp 
+            on msg.ID = rcp.MSGID order by msg.id desc, rcp.ID";
+    $result = ibase_query($dbh, $sql) or die(ibase_errmsg());
+    $data = [];
+    while($row = ibase_fetch_object($result)) {
+      $data[] = [$row->CUST, $row->MSG, $row->MOB, $row->DT, $row->USR];
+    }
+    ibase_free_result($result);
+    dbClose($dbh);
+    $bold = ['font-style'=>'bold'];
+    $hStyle = array($bold, $bold, $bold, $bold, $bold);
+
+    $writer = new XLSXWriter();
+    $writer->writeSheetHeader('Sheet1', $header, $hStyle);
+    foreach($data as $row)
+      $writer->writeSheetRow('Sheet1', $row );
+    $writer->writeToFile($file);
+
+    return $file;
+  }
+
   function start() {
     if($_SERVER["REQUEST_METHOD"] == "POST") {
       if(isset($_POST["btnSubmit"])) {
@@ -351,6 +399,10 @@ EOD;
               if(sendMessage($_POST["smsContent"], $_SESSION["data"]))
                 makeLog($_POST["smsContent"], $_SESSION["data"]);
             }
+            break;
+          case "btnReport":
+            $file = createReport();
+            downloadFile($file);
             break;
         }
       }
@@ -425,15 +477,17 @@ EOD;
           <button class="btn btn-primary" type="button" data-toggle="collapse" 
             data-target="#collapseSales" aria-expanded="false" 
             aria-controls="collapseSales" id="btnSales">
-              Search by Sales <i class="fas fa-table"></i>
+              Search by Sales <i class="far fa-credit-card"></i>
           </button>
           <button class="btn btn-primary" type="button" data-toggle="collapse" 
             data-target="#collapseCusts" aria-expanded="false" 
             aria-controls="collapseCusts" id="btnCusts">
               Search by Customers <i class="fas fa-address-card"></i>
-
           </button>
-          <a href="#" class="badge badge-light">Reports</a>
+          <button class="btn btn-light btn-sm" type="submit" 
+            name="btnSubmit" value="btnReport" id="btnReport">
+            Report <i class="far fa-file-excel" aria-hidden="true"></i>
+          </button>
         </p>
         <div class="collapse" id="collapseSales">
           <div class="card card-body mb-3">
