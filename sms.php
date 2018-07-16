@@ -362,37 +362,25 @@ EOD;
     }
   }
 
-  function createReport() {
-    include_once("xlsxwriter.class.php");
-    $file = "sms-report.xlsx";
-    $header = [
-                'Customer'=>'string', 
-                'Msg'=>'string',
-                'Mob'=>'string',
-                'Dt'=>'datetime',
-                'Usr'=>'string',
-              ];
-    $selCusts = [];
-    $dbh = dbConnect();
+  function createReportCSV() {
+    $file = "sms-report.csv";
+    $fp = fopen($file,"w");
     $sql = "select cust,msg,mob,dt,usr from UF_SMS_LOG_MSG msg 
             inner join UF_SMS_LOG_RCP rcp 
             on msg.ID = rcp.MSGID order by msg.id desc, rcp.ID";
+    $dbh = dbConnect();
     $result = ibase_query($dbh, $sql) or die(ibase_errmsg());
+    dbClose($dbh);
+
     $data = [];
+    $data[] = ["Customer", "Msg", "Mob", "Dt", "Usr"];
     while($row = ibase_fetch_object($result)) {
       $data[] = [$row->CUST, $row->MSG, $row->MOB, $row->DT, $row->USR];
     }
     ibase_free_result($result);
-    dbClose($dbh);
-    $bold = ['font-style'=>'bold'];
-    $hStyle = array($bold, $bold, $bold, $bold, $bold);
-
-    $writer = new XLSXWriter();
-    $writer->writeSheetHeader('Sheet1', $header, $hStyle);
     foreach($data as $row)
-      $writer->writeSheetRow('Sheet1', $row );
-    $writer->writeToFile($file);
-
+      fputcsv($fp, $row);
+    fclose($fp);
     return $file;
   }
 
@@ -441,7 +429,7 @@ EOD;
             }
             break;
           case "btnReport":
-            $file = createReport();
+            $file = createReportCSV();
             downloadFile($file);
             break;
           case "getPin":
