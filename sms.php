@@ -1,12 +1,13 @@
 <?php
   session_start();
   function dbConnect() {
-    $host   = 'localhost:';
-    $dbname = '/var/www/html/ufsms/kunwardb.fdb';
+    $host   = 'localhost:unifresh_local';
+    #$dbname = '/var/www/html/ufsms/kunwardb.fdb';
     $dbuser = 'sysdba';
     $dbpass = 'masterkey';
 
-    $dbh = ibase_connect($host.$dbname, $dbuser, $dbpass) or 
+    #$dbh = ibase_connect($host.$dbname, $dbuser, $dbpass) or 
+    $dbh = ibase_connect($host, $dbuser, $dbpass) or 
       die(ibase_errmsg());
     return $dbh;
   }
@@ -116,6 +117,7 @@ EOD;
     if( ! isset($_SESSION["billingGroups"])) {
       $sql = "select distinct cm.ADDITIONALFIELD_47 as BILLGROUP 
                 from CUSTOMERMASTER cm where cm.customerstatus='Active' 
+                and cm.ADDITIONALFIELD_47 is not null
                 order by BILLGROUP";
       $dbh = dbConnect();
       $result = ibase_query($dbh, $sql) or die(ibase_errmsg());
@@ -125,6 +127,7 @@ EOD;
         $billGroups[] = $row->BILLGROUP;
       }
       ibase_free_result($result);
+      $billGroups[] = "(NoBillingGroup)";
       $_SESSION["billingGroups"] = $billGroups;
     }
     foreach ($_SESSION["billingGroups"] as $billG) {
@@ -146,8 +149,13 @@ EOD;
     else
       $runNumQuery = "and cm.ADDITIONALFIELD_8 = '$runNum'";
 
-    $billGroupQuery = $billGroup=="(All)" ? 
-      "" : "and cm.ADDITIONALFIELD_47 = '$billGroup'";
+    $billGroupQuery = "";
+    if($billGroup == "(All)") 
+      $billGroupQuery = "";
+    else if($billGroup == "(NoBillingGroup)") 
+      $billGroupQuery = "and cm.ADDITIONALFIELD_47 is null";
+    else
+      $billGroupQuery = "and cm.ADDITIONALFIELD_47 = '$billGroup'";
   
     #here are the firebird magic lines for displaying date in dd.mm.yyyy format
     #keeping here for reference
@@ -196,8 +204,13 @@ EOD;
     $custQuery = sprintf("and upper(cm.CUSTOMER) like UPPER('%%%s%%')", 
                   str_replace(" ","%",$cust));
 
-    $billGroupQuery = $billGroup=="(All)" ? 
-      "" : "and cm.ADDITIONALFIELD_47 = '$billGroup'";
+    $billGroupQuery = "";
+    if($billGroup == "(All)") 
+      $billGroupQuery = "";
+    else if($billGroup == "(NoBillingGroup)") 
+      $billGroupQuery = "and cm.ADDITIONALFIELD_47 is null";
+    else
+      $billGroupQuery = "and cm.ADDITIONALFIELD_47 = '$billGroup'";
 
     $sql = "select cm.CUSTOMER, cm.CUSTOMERMOBILE, 
             cm.ADDITIONALFIELD_47 as BILLGROUP, 
@@ -239,18 +252,18 @@ EOD;
     }
 
     $table .= "</thead><tbody>";
-      foreach($result as $row) {
-        $table .= "<tr>";
-        foreach($row as $col) {
-          $table .= "<td>$col</td>";
-        }
-        $c = $row[0];
-        $table .= sprintf("<td style=\"text-align:center;\">".
-                    "<a href=\"javascript:formSubmit('$c');\">
-                      <i class='fa fa-times text-danger' aria-hidden='true'>
-                    </a>");
-        $table .= "</tr>\n";
+    foreach($result as $row) {
+      $table .= "<tr>";
+      foreach($row as $col) {
+        $table .= "<td>$col</td>";
       }
+      $c = $row[0];
+      $table .= sprintf("<td style=\"text-align:center;\">".
+                  "<a href=\"javascript:formSubmit('$c');\">
+                    <i class='fa fa-times text-danger' aria-hidden='true'>
+                  </a>");
+      $table .= "</tr>\n";
+    }
     $table .= "</tbody></table>";
     return $table;
   }
@@ -538,7 +551,7 @@ EOD;
                 <label for="billGroupC">Billing Group</label>
                 <select class="form-control form-control-sm"
                   name="billGroupC" id="billGroupC">
-                    <?php getBillingGroups($_POST["billGroupC"]??"") ?>
+                  <?php getBillingGroups($_POST["billGroupC"]??"") ?>
                 </select>
               </div>
             </div>
@@ -577,9 +590,10 @@ EOD;
             <label for="smsContent">Message</label>
             <textarea class="form-control form-control-sm"
               rows="5" name="smsContent" 
-              id="smsContent"><?= $_POST["smsContent"]??"" ?></textarea>
+              id="smsContent"><?=$_POST["smsContent"]??""?></textarea>
             <button type="submit" class="btn btn-danger align-bottom mt-2 mb-3" 
-              id="btnSendMsg" name="btnSubmit" value="btnSendMsg" onclick="return confirm('Sure to send messages?');">
+              id="btnSendMsg" name="btnSubmit" value="btnSendMsg" 
+              onclick="return confirm('Sure to send messages?');">
               Send Message <i class="fas fa-envelope"></i>
             </button>
           </div>
