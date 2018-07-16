@@ -270,7 +270,7 @@ EOD;
 
   function showTemps() {
     $dbh = dbConnect();
-    $sql = "select id, name from templates order by name";
+    $sql = "select id, name from UF_SMS_TEMPLATES order by name";
 
     $result = ibase_query($dbh, $sql) or die (ibase_errmsg());
     while($row = ibase_fetch_object($result)) {
@@ -286,7 +286,7 @@ EOD;
 
   function useTemp($Id) {
     $dbh = dbConnect();
-    $sql = "select message from templates where id=".$Id;
+    $sql = "select message from UF_SMS_TEMPLATES where id=".$Id;
     $result = ibase_query($dbh, $sql) or die (ibase_errmsg());
     $_POST["smsContent"] = stripslashes(ibase_fetch_assoc($result)["MESSAGE"]);
     ibase_free_result($result);
@@ -301,22 +301,22 @@ EOD;
       return;
     }
     $dbh = dbConnect();
-    $sql = sprintf("update or insert into templates (id, name, message) ".
-            "values((select coalesce(max(id),0)+1 from templates),".
+    $sql = sprintf("update or insert into UF_SMS_TEMPLATES (id, name, message) ".
+            "values((select coalesce(max(id),0)+1 from UF_SMS_TEMPLATES),".
             "'%s','%s') matching(name)",$tname, $tmsg);
     $result = ibase_query($dbh, $sql) or die (ibase_errmsg());
     dbClose($dbh);   
     flash("Template Saved","alert-success");
   } 
 
-  function makeLog($msg, $data) {
+  function makeLog($msg, $data, $usr) {
     $dbh = dbConnect();
 
     #get unique id to be used in MSG and RCP tables
     $msgid = ibase_gen_id ("UF_GEN_SMS_LOG_MSGID", 1, $dbh);
 
     $sql = sprintf("insert into UF_SMS_LOG_MSG values
-            ('%s','%s', timestamp 'now', '')", $msgid, $msg);
+            ('%s','%s', timestamp 'now', '%s')", $msgid, $msg, $usr);
     #prepared query to be used repeatedly in loop
     $qh = ibase_prepare("insert into UF_SMS_LOG_RCP values(
             next value for UF_GEN_SMS_LOG_RCPID, ?, ?, ?)");
@@ -396,6 +396,32 @@ EOD;
     return $file;
   }
 
+  function checkPin($pinCode) {
+    if(! filter_var($pinCode, FILTER_VALIDATE_INT)) {
+      unset($_SESSION["usr"]);
+      flash("Wrong Pin", "alert-danger");
+      return;
+    }
+
+    $sql = "select first 1 EMPLOYEE as USR from EMPLOYEEPINCODES 
+            where PINCODE='$pinCode'";
+    $dbh = dbConnect();
+    $res = ibase_query($dbh, $sql);
+    dbClose($dbh);
+    $row = ibase_fetch_object($res);
+    ibase_free_result($res);
+
+    if(isset($row) and !empty($row->USR)) {
+      $usr = $row->USR;
+      $_SESSION["usr"] = $usr;
+      flash("Logged in as $usr");
+    }
+    else {
+      unset($_SESSION["usr"]);
+      flash("Wrong Pin", "alert-danger");
+    }    
+  }
+
   function start() {
     if($_SERVER["REQUEST_METHOD"] == "POST") {
       if(isset($_POST["btnSubmit"])) {
@@ -410,12 +436,16 @@ EOD;
           case "btnSendMsg":
             if(isset($_SESSION["data"]) && !empty($_POST["smsContent"])) {
               if(sendMessage($_POST["smsContent"], $_SESSION["data"]))
-                makeLog($_POST["smsContent"], $_SESSION["data"]);
+                makeLog($_POST["smsContent"], $_SESSION["data"], 
+                  $_SESSION["usr"]);
             }
             break;
           case "btnReport":
             $file = createReport();
             downloadFile($file);
+            break;
+          case "getPin":
+            checkPin($_POST["pinCode"]);
             break;
         }
       }
@@ -485,6 +515,22 @@ EOD;
       </h1>
         
       <form method="post" action="<?= $_SERVER["PHP_SELF"] ?>">
+        <?php if($_SERVER["REQUEST_METHOD"] == "GET" 
+                or !isset($_SESSION["usr"])) { ?>
+        <div class="row">
+          <div class="col-sm-2">
+            <input type="password" class="form-control form-control-sm"
+              name="pinCode" id="pinCode" placeholder="Enter Pin Code">
+          </div>
+          <div class="col-sm-2">
+            <button type="submit" class="btn btn-info align-bottom" 
+              id="getPin" name="btnSubmit" value="getPin">
+              Submit
+            </button>
+          </div>
+        </div>
+        <?php } else if ($_SERVER["REQUEST_METHOD"] == "POST" 
+                and isset($_SESSION["usr"])) { ?>
         <input type="hidden" name="delCustName" value="-1">
         <p>
           <button class="btn btn-primary" type="button" data-toggle="collapse" 
@@ -607,6 +653,7 @@ EOD;
             </button>
           </div>
         </div>
+        <?php } ?>
       </form>
     </div>
     <script>
