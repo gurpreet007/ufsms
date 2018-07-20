@@ -1,12 +1,12 @@
 <?php
   session_start();
+
   function dbConnect() {
     $host   = 'localhost:unifresh_local';
-    #$dbname = '/var/www/html/ufsms/kunwardb.fdb';
+    #$host   = 'newsrv:unifresh';
     $dbuser = 'sysdba';
     $dbpass = 'masterkey';
 
-    #$dbh = ibase_connect($host.$dbname, $dbuser, $dbpass) or 
     $dbh = ibase_connect($host, $dbuser, $dbpass) or 
       die(ibase_errmsg());
     return $dbh;
@@ -43,8 +43,8 @@ EOD;
     $http_port = "443";
     $opt_data = "";
 
-    $key = "955ef5eeb4e85dc312ced7193e4cea67";
-    $secret = "93b20c19134c8efedcc6504f369b1c21";
+    $key = "3390406d124c45b8bfc81d217f5c24dd";
+    $secret = "d8309437584aafd48f7231368edffbbb";
 
     $concat_str = sprintf("%s\n%s\n%s\n%s\n%s\n%s\n%s\n",
       $ts, $nonce, $method, $action, $http_host, $http_port, $opt_data);
@@ -59,7 +59,7 @@ EOD;
     return $mac;
   }
 
-  function sendMessage($msg, $data) {
+  function sendMessage($msg, $data, $autoSMS=false) {
     $action = "/v2/sms/";
     $crl = curl_init("https://api.smsglobal.com".$action);
     $header = [ 'Content-type: application/json',
@@ -67,10 +67,14 @@ EOD;
                 'Authorization: '. getAuthHTTPHeader("POST", $action)];
     curl_setopt($crl, CURLOPT_HTTPHEADER, $header);
 
-    $mobs = array_unique(array_column($data, 1));
+    if($autoSMS)
+      $mobs = $data;
+    else
+      $mobs = array_unique(array_column($data, 1));
+
     $data = [ 
               'destinations'  => $mobs,
-              'origin'        => 'test', 
+              'origin'        => '',
               'message'       => $msg,
               'sharedPool'    =>  '',
             ];
@@ -410,6 +414,302 @@ EOD;
     }    
   }
 
+  function getSoonShadows($hours = "1") {
+    $sql = "select
+        CUSTOMER,
+        CUSTOMERMOBILE,
+        SHADOWNUMBER,
+        cutoffday as \"CUTOFFDATE\",
+        CUTOFFTIME,
+        DISPATCHDAY as \"ORDERDATE\"
+        from (
+        select
+        distinct
+        ADDITIONALFIELD_1,
+        ADDITIONALFIELD_47,
+        CSUID,
+        CUSTOMERSTATUS,
+        CUSTOMERMOBILE,
+        REGULARSCHED.CUSTOMER,
+        CGROUP,
+        SCHEDGROUP,
+        SMETHOD,
+        CASE when ALTEREDSCHED.STATUS is null then
+          CUTOFFDAY else NEWCUTOFFDAY END as \"CUTOFFDAY\",
+        CASE when NEWCUTOFFTIME is null then
+          CUTOFFTIME else NEWCUTOFFTIME END as \"CUTOFFTIME\",
+        CASE when ALTEREDSCHED.STATUS is null then
+          DISPATCHDAY else NEWDISPATCH END as \"DISPATCHDAY\",
+        CASE when ALTEREDSCHED.STATUS is null then
+          DELIVERYDAY else NEWDELIVERY END as \"DELIVERYDAY\",
+        REGULARSCHED.DISPATCHDAY as \"ORIGINALDISPATCH\",
+        ALTEREDSCHED.STATUS,
+        SHADOWS.SHADOWNUMBER,
+        SHADOWS.OUTPUTDATE,
+        SHADOWSPROCESSED.SHADOWNUMBER as \"PROCESSNUMBER\",
+        SHADOWSPROCESSED.PROCESSEDDATE,
+        SHADOWS.ORDERTYPE,
+        SIH.*
+        from
+        (
+        select
+        UF_CUST_SCHEDULES.CUSTOMER,
+        CUSTOMERMASTER.CUSTOMERMOBILE,
+        CASE when CSG.\"GROUP\" is null then CSGC.\"GROUP\"
+          else CSG.\"GROUP\" END as \"CGROUP\",
+        CASE when CUSTOMERMASTER.SHIPPINGMETHOD is null then 'UniFresh'
+          else CUSTOMERMASTER.SHIPPINGMETHOD END as \"SMETHOD\",
+        CUSTOMERMASTER.ADDITIONALFIELD_38 as \"STOREID\",
+        CO.OUTPUTDATE as \"CUTOFFDAY\",
+        UF_CUST_SCHEDULES.CUTOFFTIME,
+        DI.OUTPUTDATE as \"DISPATCHDAY\",
+        DE.OUTPUTDATE as \"DELIVERYDAY\",
+        CASE when CSG.\"GROUP\" is null then CSGC.\"GROUP\" else
+          CSG.\"GROUP\" END as \"SCHEDGROUP\",
+        CUSTOMERMASTER.CUSTOMERSTATUS,
+        CUSTOMERMASTER.ADDITIONALFIELD_1,
+        customermaster.ADDITIONALFIELD_47,
+        customermaster.SYSUNIQUEID as \"CSUID\"
+        from
+        CUSTOMERMASTER
+        left outer join (select CUSTOMERGROUP, \"GROUP\"
+          from CUSTOMERSCHEDULEGROUPS) CSGC on
+        CASE when CUSTOMERMASTER.CUSTOMER not in
+          (select distinct CUSTOMERGROUP from CUSTOMERSCHEDULEGROUPS) then
+             CASE when CUSTOMERMASTER.ADDITIONALFIELD_1 not in
+            (select distinct CUSTOMERGROUP from CUSTOMERSCHEDULEGROUPS) then
+            'Standard' else CUSTOMERMASTER.ADDITIONALFIELD_1 END
+        else CUSTOMERMASTER.CUSTOMER END = CSGC.CUSTOMERGROUP,
+        UF_CUST_SCHEDULES
+        left outer join (select CUSTOMERGROUP, \"GROUP\"
+          from CUSTOMERSCHEDULEGROUPS) CSG on
+          CSG.CUSTOMERGROUP = UF_CUST_SCHEDULES.CUSTOMER
+        left outer join (select * from
+          RETURN_DATESBETWEEN(current_date - 4, current_date + 6)) CO on
+          CASE when UF_CUST_SCHEDULES.CUTOFFDAY = 7 then 0
+          else UF_CUST_SCHEDULES.CUTOFFDAY END = EXTRACT(WEEKDAY
+            from CO.OUTPUTDATE)
+        left outer join (select * from
+          RETURN_DATESBETWEEN(current_date - 4, current_date + 6)) DI on
+          CASE when UF_CUST_SCHEDULES.DISPATCHDAY = 7 then 0
+          else UF_CUST_SCHEDULES.DISPATCHDAY END = EXTRACT(WEEKDAY
+          from DI.OUTPUTDATE)
+        left outer join (select * from
+        RETURN_DATESBETWEEN(current_date - 4, current_date + 8)) DE on
+        CASE when UF_CUST_SCHEDULES.DELIVERYDAY = 7 then 0 else
+        UF_CUST_SCHEDULES.DELIVERYDAY END = EXTRACT(WEEKDAY from DE.OUTPUTDATE)
+        where
+        CUSTOMERMASTER.CUSTOMER = UF_CUST_SCHEDULES.CUSTOMER and
+        DI.OUTPUTDATE <= CO.OUTPUTDATE + 6 and
+        DI.OUTPUTDATE >= CO.OUTPUTDATE and
+        DE.OUTPUTDATE <= DI.OUTPUTDATE + 6 and
+        DE.OUTPUTDATE >= DI.OUTPUTDATE
+        order by
+        SCHEDGROUP, SMETHOD, UF_CUST_SCHEDULES.CUSTOMER, CO.OUTPUTDATE
+        ) REGULARSCHED
+        left outer join
+        (
+        select UF_SCHEDULES.*,
+        CUSTOMERSCHEDULEGROUPS.CUSTOMERGROUP,
+        CUSTOMERSCHEDULEGROUPS.\"GROUP\"
+        from
+        UF_SCHEDULES,
+        CUSTOMERSCHEDULEGROUPS
+        where
+        CUSTOMERSCHEDULEGROUPS.\"GROUP\" = UF_SCHEDULES.GROUPING
+        ) ALTEREDSCHED on ALTEREDSCHED.\"GROUP\" = REGULARSCHED.SCHEDGROUP
+        and ALTEREDSCHED.SHIPPINGMETHOD = REGULARSCHED.SMETHOD
+        and ALTEREDSCHED.NORMALDISPATCH = REGULARSCHED.DISPATCHDAY
+        left outer join
+        (
+        select salesshadowsheader.CUSTOMER, salesshadowsheader.SHADOWNUMBER,
+        CO.OUTPUTDATE, salesshadowsheader.ORDERTYPE from
+        salesshadowsheader
+        left outer join (select * from
+        RETURN_DATESBETWEEN(current_date - 4, current_date + 20)) CO
+        on CASE when salesshadowsheader.ORDERDAY = 7 then 0 else
+        salesshadowsheader.ORDERDAY END = EXTRACT(WEEKDAY from CO.OUTPUTDATE)
+        where
+        salesshadowsheader.SHADOWNUMBER in
+        (select distinct SHADOWNUMBER from salesshadowslines) and
+        (RECURRENCE = CO.OUTPUTDATE or RECURRENCE = '1984-08-30') and
+        (salesshadowsheader.STATUS is null
+        or salesshadowsheader.STATUS = 'Active')
+        ) SHADOWS on SHADOWS.OUTPUTDATE = REGULARSCHED.DISPATCHDAY and
+        SHADOWS.CUSTOMER = REGULARSCHED.CUSTOMER
+        left outer join
+        (
+        select salesinvoiceheader.customer as \"SIHCUST\",
+          salesinvoiceheader.invoicedate as \"SIHDATE\",
+          salesinvoiceheader.INVOICENUMBER from salesinvoiceheader,
+          salesinvoicegrouping, salesheader where
+          (salesheader.additionalfield_3 IS NULL OR
+           (salesheader.additionalfield_3 <> 'Addon Order'
+          and salesheader.additionalfield_3 <> 'Shortage Replacement'))
+          and salesinvoiceheader.invoicenumber =
+          salesinvoicegrouping.invoicenumber and
+          salesinvoicegrouping.ordernumber = salesheader.ordernumber
+          and salesinvoiceheader.INVOICEDATE >= current_date - 2
+          and salesinvoiceheader.INVOICEDATE <= current_date + 3
+        ) SIH on CASE when ALTEREDSCHED.STATUS is null then DISPATCHDAY
+        else NEWDISPATCH END = SIH.SIHDATE and
+        SIH.SIHCUST = REGULARSCHED.CUSTOMER
+        left outer join
+        (
+        select * from SALESSHADOWSPROCESSED where
+        SALESSHADOWSPROCESSED.PROCESSEDDATE >= current_date - 3
+        and SALESSHADOWSPROCESSED.PROCESSEDDATE <= current_date + 4
+        ) SHADOWSPROCESSED on SHADOWSPROCESSED.PROCESSEDDATE + 1 =
+        SHADOWS.OUTPUTDATE and SHADOWSPROCESSED.SHADOWNUMBER =
+        SHADOWS.SHADOWNUMBER
+        where
+        (ALTEREDSCHED.STATUS is null or ALTEREDSCHED.STATUS = 'Enabled')
+        )
+        where
+        DISPATCHDAY <> cast('2017-04-15' as Date) and
+        DISPATCHDAY > current_date and
+        INVOICENUMBER is null and
+        ORDERTYPE='Shadow Order' and
+        CUSTOMERSTATUS = 'Active' and
+        shadownumber is not null and
+        customermobile is not null and
+        cutoffday = current_date
+        and cutofftime > current_time
+        and cutofftime < dateadd($hours hour to current_time)
+        order by
+        cutoffday, cutofftime, SCHEDGROUP, SMETHOD, CUSTOMER, DISPATCHDAY";
+
+    #echo $sql;
+    $dbh = dbConnect();
+    $res = ibase_query($dbh, $sql);
+    dbClose($dbh);
+
+    if($res === false){
+      echo "Error occurred";
+      return 1;
+    }
+
+    $soonShadow = [];
+    while($row = ibase_fetch_object($res)) {
+      $goodLookingDate =  substr($row->CUTOFFDATE,8,2).'-'.
+                          substr($row->CUTOFFDATE,5,2).'-'.
+                          substr($row->CUTOFFDATE,0,4);
+      $soonShadow[] = [
+                        "cust"            => $row->CUSTOMER,
+                        "shadownum"       => $row->SHADOWNUMBER,
+                        "cutoffdate"      => $row->CUTOFFDATE,
+                        "usercutoffdate"  => $goodLookingDate,
+                        "cutofftime"      => $row->CUTOFFTIME,
+                        "orderdate"       => $row->ORDERDATE,
+                        #"mob"            => $row->CUSTOMERMOBILE,
+                        "mob"             => "0481715080,0419814378",
+                      ];
+    }
+    ibase_free_result($res);
+    return $soonShadow;
+  }
+
+  function getTodaysLog() {
+    $sql = "select shadownumber from uf_log_auto_sms
+            where cutoffdate = current_date";
+    $dbh = dbConnect();
+    $res = ibase_query($dbh, $sql);
+    dbClose($dbh);
+
+    $todayLog = [];
+    while($row = ibase_fetch_object($res)) {
+      $todayLog[] = $row->SHADOWNUMBER;
+    }
+    ibase_free_result($res);
+    return $todayLog;
+  }
+
+  function addAutoSMSLog($soonShadow, $msg) {
+    $half_sql = "insert into UF_LOG_AUTO_SMS values
+      ('%s', '%s', '%s', '%s', '%s', '%s', '%s',current_timestamp)";
+
+    $sql = sprintf($half_sql,
+      $soonShadow["cust"], $soonShadow["shadownum"],
+      $soonShadow["cutoffdate"], $soonShadow["cutofftime"],
+      $soonShadow["orderdate"], $soonShadow["mob"], $msg);
+
+    echo "<br>$sql";
+    $dbh = dbConnect();
+    ibase_query($dbh, $sql) or die('Error: Unable to add log');
+    dbClose($dbh);
+  }
+
+  function sendAutoSMS() {
+    $soonShadows = getSoonShadows("1" /*hours*/);
+    echo "<pre>"; print_r($soonShadows); echo "</pre>";
+
+    $todayLog = getTodaysLog();
+    echo "<pre>"; print_r($todayLog); echo "</pre>";
+
+    foreach($soonShadows as $thisSoonShadow) {
+      if(! in_array($thisSoonShadow["shadownum"], $todayLog)) {
+
+        $msg = sprintf("Dear %s, you have not placed ".
+          "order for %s. Please avoid receiving shadow order by ".
+          "placing one within one hour. Thanks.\nUniFresh",
+          $thisSoonShadow["cust"], $thisSoonShadow["usercutoffdate"]);
+
+        echo "<br>$msg<br>"; echo strlen($msg);
+        addAutoSMSLog($thisSoonShadow, $msg);
+        sendMessage($msg, explode(",", $thisSoonShadow["mob"]), true);
+      }
+      else {
+        echo "Found $thisSoonShadow[shadownum] for $thisSoonShadow[cust]";
+      }
+    }
+  }
+
+  function createReportContent() {
+    $sql = "select * from UF_LOG_AUTO_SMS
+      where cast(msgts as date)-1 = current_date-1 order by msgts";
+    $dbh = dbConnect();
+    $result = ibase_query($dbh, $sql) or die(ibase_errmsg());
+    dbClose($dbh);
+
+    $data = [];
+    $data[] = [ "Customer", "ShadowNum", "CutOffDate", "CutOffTime",
+                "OrderDate", "Mobile", "MsgText", "MsgTimeStamp"];
+    while($row = ibase_fetch_object($result)) {
+      $data[] = [ $row->CUSTOMER, $row->SHADOWNUMBER, $row->CUTOFFDATE,
+                  $row->CUTOFFTIME, $row->ORDERDATE, $row->MOBILE,
+                  $row->MSGTEXT, $row->MSGTS];
+    }
+    ibase_free_result($result);
+    return $data;
+  }
+
+  function do_post_request($url, $postdata = "") {
+    $params = ['http' => ['method' => 'POST',
+                          'content' => $postdata]];
+
+    $ctx = stream_context_create($params);
+
+    $fp = @fopen($url, 'rb', false, $ctx);
+    if (!$fp) {
+      throw new Exception("Problem with $url, $php_errormsg");
+    }
+
+    $response = @stream_get_contents($fp);
+    if ($response === false) {
+      throw new Exception("Problem reading data from ${url}, $php_errormsg");
+    }
+    return $response;
+  }
+
+  function sendAutoReport() {
+    $reportContent = createReportContent();
+    $postData = "toEmails=" . rawurlencode("sales@unifresh.com.au");
+    $postData .= "&fileContent=" . json_encode($reportContent);
+
+    $xmlstr = do_post_request(
+      "http://mail.unifresh.com.au:3333/auto_sms_email.php", $postData);
+  }
+
   function start() {
     if($_SERVER["REQUEST_METHOD"] == "POST") {
       if(isset($_POST["btnSubmit"])) {
@@ -417,7 +717,7 @@ EOD;
           case "saveTemp":
             saveTemp($_POST["tempName"], 
                      $_POST["smsContent"]);
-            break; 
+            break;
           case "useTemp":
             useTemp(addslashes($_POST["selTemplate"]));
             break;
@@ -443,9 +743,17 @@ EOD;
         array_splice($_SESSION["data"], $indx, 1);
       }
     }
-    else {
+    else if($_SERVER["REQUEST_METHOD"] == "GET") {
       session_unset();
       session_destroy();
+      if(isset($_GET["autosms"]) and $_GET["autosms"]=="yes") {
+        SendAutoSMS();
+        exit;
+      }
+      if(isset($_GET["autoreport"]) and $_GET["autoreport"]=="yes") {
+        SendAutoReport();
+        exit;
+      }
     }
   }
 
