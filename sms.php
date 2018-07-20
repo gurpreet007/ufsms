@@ -2,8 +2,8 @@
   session_start();
 
   function dbConnect() {
-    $host   = 'localhost:unifresh_local';
-    #$host   = 'newsrv:unifresh';
+    #$host   = 'localhost:unifresh_local';
+    $host   = 'newsrv:unifresh';
     $dbuser = 'sysdba';
     $dbpass = 'masterkey';
 
