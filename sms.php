@@ -72,8 +72,9 @@ EOD;
     else
       $mobs = array_unique(array_column($data, 1));
 
+    $prunedMobs = preg_replace("/[ a-zA-Z-.()]/", "", $mobs);
     $data = [ 
-              'destinations'  => $mobs,
+              'destinations'  => $prunedMobs,
               'origin'        => '',
               'message'       => $msg,
               'sharedPool'    =>  '',
@@ -594,7 +595,6 @@ EOD;
       $goodLookingDate =  substr($row->CUTOFFDATE,8,2).'-'.
                           substr($row->CUTOFFDATE,5,2).'-'.
                           substr($row->CUTOFFDATE,0,4);
-      $prunedMob = preg_replace("/[ a-zA-Z-.()]/", "", $row->CUSTOMERMOBILE);
       $soonShadow[] = [
                         "cust"            => $row->CUSTOMER,
                         "shadownum"       => $row->SHADOWNUMBER,
@@ -602,7 +602,7 @@ EOD;
                         "usercutoffdate"  => $goodLookingDate,
                         "cutofftime"      => $row->CUTOFFTIME,
                         "orderdate"       => $row->ORDERDATE,
-                        #"mob"            =>  $prunedMob,
+                        #"mob"            =>  $row->CUSTOMERMOBILE,
                         "mob"             => "0481715080,0419814378",
                       ];
     }
