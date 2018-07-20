@@ -594,6 +594,7 @@ EOD;
       $goodLookingDate =  substr($row->CUTOFFDATE,8,2).'-'.
                           substr($row->CUTOFFDATE,5,2).'-'.
                           substr($row->CUTOFFDATE,0,4);
+      $prunedMob = preg_replace("/[ a-zA-Z-.()]/", "", $row->CUSTOMERMOBILE);
       $soonShadow[] = [
                         "cust"            => $row->CUSTOMER,
                         "shadownum"       => $row->SHADOWNUMBER,
@@ -601,7 +602,7 @@ EOD;
                         "usercutoffdate"  => $goodLookingDate,
                         "cutofftime"      => $row->CUTOFFTIME,
                         "orderdate"       => $row->ORDERDATE,
-                        #"mob"            => $row->CUSTOMERMOBILE,
+                        #"mob"            =>  $prunedMob,
                         "mob"             => "0481715080,0419814378",
                       ];
     }
