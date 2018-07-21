@@ -680,6 +680,7 @@ EOD;
                   $row->CUTOFFTIME, $row->ORDERDATE, $row->MOBILE,
                   $row->MSGTEXT, $row->MSGTS];
     }
+    echo "Number of records: ". (count($data)-1);
     ibase_free_result($result);
     return $data;
   }
@@ -707,8 +708,11 @@ EOD;
     $postData = "toEmails=" . rawurlencode("sales@unifresh.com.au");
     $postData .= "&fileContent=" . json_encode($reportContent);
 
+    echo $postData;
+    echo "Doing post request to send email...";
     $xmlstr = do_post_request(
       "http://mail.unifresh.com.au:3333/auto_sms_email.php", $postData);
+    echo $xmlstr;
   }
 
   function start() {
