@@ -673,16 +673,68 @@ EOD;
     dbClose($dbh);
 
     $data = [];
-    $data[] = [ "Customer", "ShadowNum", "CutOffDate", "CutOffTime",
-                "OrderDate", "Mobile", "MsgText", "MsgTimeStamp"];
     while($row = ibase_fetch_object($result)) {
       $data[] = [ $row->CUSTOMER, $row->SHADOWNUMBER, $row->CUTOFFDATE,
                   $row->CUTOFFTIME, $row->ORDERDATE, $row->MOBILE,
-                  $row->MSGTEXT, $row->MSGTS];
+                  $row->MSGTS];
     }
     echo "Number of records: ". (count($data)-1);
     ibase_free_result($result);
     return $data;
+  }
+
+  function createHTMLTable($data) {
+    $table = "<!DOCTYPE html>
+              <html>
+                <head>
+                  <style>
+                    table {
+                        font-family: arial, sans-serif;
+                        border-collapse: collapse;
+                        width: 100%;
+                    }
+
+                    td, th {
+                        border: 1px solid #dddddd;
+                        text-align: left;
+                        padding: 8px;
+                    }
+
+                    tr:nth-child(even) {
+                        background-color: #dddddd;
+                    }
+                  </style>
+                </head>
+                <body>
+                  <h3>Auto SMS sent yesterday:</h3>
+                  <div style=\"overflow-x:auto;\">
+                    <table>
+                      <tr>
+                        <th>Customer</th>
+                        <th>ShadowNum</th>
+                        <th>CutOffDate</th>
+                        <th>CutOffTime</th>
+                        <th>OrderDate</th>
+                        <th>Mobile</th>
+                        <th>MsgTimeStamp</th>
+                      </tr>";
+    foreach($data as $row) {
+      $table .= "<tr>";
+      $table .= "<td>$row[0]</td>";
+      $table .= "<td>$row[1]</td>";
+      $table .= "<td>$row[2]</td>";
+      $table .= "<td>$row[3]</td>";
+      $table .= "<td>$row[4]</td>";
+      $table .= "<td>$row[5]</td>";
+      $table .= "<td>$row[6]</td>";
+      $table .= "</tr>";
+    }
+    $table .= "
+                    </table>
+                  </div>
+                </body>
+              </html>";
+    return $table;
   }
 
   function do_post_request($url, $postdata = "") {
@@ -704,12 +756,20 @@ EOD;
   }
 
   function sendAutoReport() {
+    $from = "technology@unifresh.com.au";
+    $to = "admin@unifresh.com.au";
+    $subject = "Auto SMS Log";
     $reportContent = createReportContent();
-    $postData = "toEmails=" . rawurlencode("sales@unifresh.com.au");
-    $postData .= "&fileContent=" . json_encode($reportContent);
+    $body = createHTMLTable($reportContent);
+    $postData  =  "";
+    $postData .=  "toEmail="      . rawurlencode($to);
+    $postData .=  "&fromEmail="   . rawurlencode($from);
+    $postData .=  "&subject="     . rawurlencode($subject);
+    $postData .=  "&body="        . rawurlencode($body);
+    $postData .=  "&fileContent=" . json_encode('');
 
-    echo $postData;
-    echo "Doing post request to send email...";
+    #echo $postData;
+    echo "<br>Doing post request to send email...";
     $xmlstr = do_post_request(
       "http://mail.unifresh.com.au:3333/auto_sms_email.php", $postData);
     echo $xmlstr;
