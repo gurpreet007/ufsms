@@ -667,7 +667,7 @@ EOD;
 
   function createReportContent() {
     $sql = "select * from UF_LOG_AUTO_SMS
-      where cast(msgts as date)-1 = current_date-1 order by msgts";
+      where cast(msgts as date) = current_date-1 order by msgts";
     $dbh = dbConnect();
     $result = ibase_query($dbh, $sql) or die(ibase_errmsg());
     dbClose($dbh);
