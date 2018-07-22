@@ -682,7 +682,8 @@ EOD;
 
         $msg = sprintf("Dear %s, you have not placed ".
           "order for %s. Please avoid receiving shadow order by ".
-          "placing one within one hour. Thanks.\nUniFresh",
+          "placing one within one hour or just reply 'No' to this message.".
+          "Thanks.\nUniFresh",
           $thisSoonShadow["cust"], $thisSoonShadow["usercutoffdate"]);
 
         echo "<br>$msg<br>"; echo strlen($msg);
