@@ -67,7 +67,9 @@ EOD;
                 'Authorization: '. getAuthHTTPHeader("POST", $action)];
     curl_setopt($crl, CURLOPT_HTTPHEADER, $header);
 
-    $mobs = array_unique($mobs);
+    if(gettype($mobs) === "array") {
+      $mobs = array_unique($mobs);
+    }
 
     $prunedMobs = preg_replace("/[ a-zA-Z-.()]/", "", $mobs);
     $data = [ 
@@ -105,12 +107,13 @@ EOD;
       }
     }
     else if(gettype($mobs) === "string") { 
-      $prunedMob =  preg_replace("/[ a-zA-Z-.()]/", "", $mob);
+      $prunedMob =  preg_replace("/[ a-zA-Z-.()]/", "", $mobs);
       $emailIDs = "$prunedMob@$domainName";
     }
     else
       return false;
 
+    echo "Email IDs: $emailIDs";
     $postData  =  "";
     $postData .=  "toEmail="      . rawurlencode($emailIDs);
     $postData .=  "&fromEmail="   . rawurlencode($from);
@@ -634,6 +637,7 @@ EOD;
                         "orderdate"       => $row->ORDERDATE,
                         #"mob"            =>  $row->CUSTOMERMOBILE,
                         "mob"             => "0481715080,0419814378",
+                        #"mob"             => "0481715080",
                       ];
     }
     ibase_free_result($res);
@@ -682,13 +686,14 @@ EOD;
 
         $msg = sprintf("Dear %s, you have not placed ".
           "order for %s. Please avoid receiving shadow order by ".
-          "placing one within one hour or just reply 'No' to this message.".
+          "placing one within one hour.".
           "Thanks.\nUniFresh",
           $thisSoonShadow["cust"], $thisSoonShadow["usercutoffdate"]);
 
         echo "<br>$msg<br>"; echo strlen($msg);
         addAutoSMSLog($thisSoonShadow, $msg);
-        sendMessageUsingEmail($msg, $thisSoonShadow["mob"]);
+        #sendMessageUsingEmail($msg, $thisSoonShadow["mob"]);
+        sendMessage($msg, $thisSoonShadow["mob"]);
       }
       else {
         echo "Found $thisSoonShadow[shadownum] for $thisSoonShadow[cust]";
