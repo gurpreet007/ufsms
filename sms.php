@@ -59,7 +59,7 @@ EOD;
     return $mac;
   }
 
-  function sendMessage($msg, $data, $autoSMS=false) {
+  function sendMessage($msg, $mobs) {
     $action = "/v2/sms/";
     $crl = curl_init("https://api.smsglobal.com".$action);
     $header = [ 'Content-type: application/json',
@@ -67,10 +67,7 @@ EOD;
                 'Authorization: '. getAuthHTTPHeader("POST", $action)];
     curl_setopt($crl, CURLOPT_HTTPHEADER, $header);
 
-    if($autoSMS)
-      $mobs = $data;
-    else
-      $mobs = array_unique(array_column($data, 1));
+    $mobs = array_unique($mobs);
 
     $prunedMobs = preg_replace("/[ a-zA-Z-.()]/", "", $mobs);
     $data = [ 
@@ -93,6 +90,39 @@ EOD;
       flash(count($mobs)." Messages Sent","alert-success");
       return true;
     }
+  }
+
+  function sendMessageUsingEmail($msg, $mobs) {
+    $emailIDs = "";
+    $domainName = "email.smsglobal.com";
+    $from = "gurpreet.singh@unifresh.com.au";
+
+    if(gettype($mobs) === "array") {
+      $mobs = array_unique($mobs);
+      foreach($mobs as $mob) {
+        $prunedMob =  preg_replace("/[ a-zA-Z-.()]/", "", $mob);
+        $emailIDs .= "$prunedMob@$domainName,";
+      }
+    }
+    else if(gettype($mobs) === "string") { 
+      $prunedMob =  preg_replace("/[ a-zA-Z-.()]/", "", $mob);
+      $emailIDs = "$prunedMob@$domainName";
+    }
+    else
+      return false;
+
+    $postData  =  "";
+    $postData .=  "toEmail="      . rawurlencode($emailIDs);
+    $postData .=  "&fromEmail="   . rawurlencode($from);
+    $postData .=  "&subject="     . rawurlencode('');
+    $postData .=  "&body="        . rawurlencode($msg);
+    $postData .=  "&fileContent=" . json_encode('');
+
+    #echo $postData;
+    echo "<br>Doing post request to send email...";
+    $xmlstr = do_post_request(
+      "http://mail.unifresh.com.au:3333/auto_sms_email.php", $postData);
+    echo $xmlstr;
   }
 
   function getRunNums() {
@@ -657,7 +687,7 @@ EOD;
 
         echo "<br>$msg<br>"; echo strlen($msg);
         addAutoSMSLog($thisSoonShadow, $msg);
-        sendMessage($msg, explode(",", $thisSoonShadow["mob"]), true);
+        sendMessageUsingEmail($msg, $thisSoonShadow["mob"]);
       }
       else {
         echo "Found $thisSoonShadow[shadownum] for $thisSoonShadow[cust]";
@@ -674,9 +704,8 @@ EOD;
 
     $data = [];
     while($row = ibase_fetch_object($result)) {
-      $data[] = [ $row->CUSTOMER, $row->SHADOWNUMBER, $row->CUTOFFDATE,
-                  $row->CUTOFFTIME, $row->ORDERDATE, $row->MOBILE,
-                  $row->MSGTS];
+      $data[] = [ $row->CUSTOMER, $row->CUTOFFTIME, 
+                  $row->MOBILE, $row->MSGTS];
     }
     echo "Number of records: ". (count($data)-1);
     ibase_free_result($result);
@@ -711,10 +740,7 @@ EOD;
                     <table>
                       <tr>
                         <th>Customer</th>
-                        <th>ShadowNum</th>
-                        <th>CutOffDate</th>
                         <th>CutOffTime</th>
-                        <th>OrderDate</th>
                         <th>Mobile</th>
                         <th>MsgTimeStamp</th>
                       </tr>";
@@ -724,9 +750,6 @@ EOD;
       $table .= "<td>$row[1]</td>";
       $table .= "<td>$row[2]</td>";
       $table .= "<td>$row[3]</td>";
-      $table .= "<td>$row[4]</td>";
-      $table .= "<td>$row[5]</td>";
-      $table .= "<td>$row[6]</td>";
       $table .= "</tr>";
     }
     $table .= "
@@ -788,7 +811,8 @@ EOD;
             break;
           case "btnSendMsg":
             if(isset($_SESSION["data"]) && !empty($_POST["smsContent"])) {
-              if(sendMessage($_POST["smsContent"], $_SESSION["data"]))
+              if(sendMessage($_POST["smsContent"], 
+                  array_column($_SESSION["data"],1)))
                 makeLog($_POST["smsContent"], $_SESSION["data"], 
                   $_SESSION["usr"]);
             }
@@ -812,11 +836,11 @@ EOD;
       session_unset();
       session_destroy();
       if(isset($_GET["autosms"]) and $_GET["autosms"]=="yes") {
-        SendAutoSMS();
+        sendAutoSMS();
         exit;
       }
       if(isset($_GET["autoreport"]) and $_GET["autoreport"]=="yes") {
-        SendAutoReport();
+        sendAutoReport();
         exit;
       }
     }
