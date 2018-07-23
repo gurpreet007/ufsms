@@ -68,13 +68,18 @@ EOD;
     curl_setopt($crl, CURLOPT_HTTPHEADER, $header);
 
     $arrMobs = array_unique($arrMobs);
+    echo "<br>Orig Mobs:";
     print_r($arrMobs);
 
-    #$prunedMobs = preg_replace("/[ a-zA-Z-.()]/", "", $mobs);
-    #echo "pruned: $prunedMobs";
+    $arrPrunedMobs = [];
+    foreach($arrMobs as $mob) {
+      $arrPrunedMobs[] = preg_replace("/[ a-zA-Z-.()]/", "", $mob);
+    }
+    echo  "<br>Pruned Mobs:";
+    print_r($arrPrunedMobs);
 
     $data = [ 
-              'destinations'  => $arrMobs,
+              'destinations'  => $arrPrunedMobs,
               'origin'        => '',
               'message'       => $msg,
               'sharedPool'    =>  '',
@@ -89,7 +94,7 @@ EOD;
     echo "<br>Rest: $rest";
   
     if(strpos($rest, "sent")) {
-      flash(count($arrMobs)." Messages Sent","alert-success");
+      flash(count($arrPrunedMobs)." Messages Sent","alert-success");
       return true;
     }
     else {
