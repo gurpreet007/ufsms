@@ -59,7 +59,7 @@ EOD;
     return $mac;
   }
 
-  function sendMessage($msg, $mobs) {
+  function sendMessage($msg, $arrMobs) {
     $action = "/v2/sms/";
     $crl = curl_init("https://api.smsglobal.com".$action);
     $header = [ 'Content-type: application/json',
@@ -67,13 +67,14 @@ EOD;
                 'Authorization: '. getAuthHTTPHeader("POST", $action)];
     curl_setopt($crl, CURLOPT_HTTPHEADER, $header);
 
-    if(gettype($mobs) === "array") {
-      $mobs = array_unique($mobs);
-    }
+    $arrMobs = array_unique($arrMobs);
+    print_r($arrMobs);
 
-    $prunedMobs = preg_replace("/[ a-zA-Z-.()]/", "", $mobs);
+    #$prunedMobs = preg_replace("/[ a-zA-Z-.()]/", "", $mobs);
+    #echo "pruned: $prunedMobs";
+
     $data = [ 
-              'destinations'  => $prunedMobs,
+              'destinations'  => $arrMobs,
               'origin'        => '',
               'message'       => $msg,
               'sharedPool'    =>  '',
@@ -84,13 +85,16 @@ EOD;
     curl_setopt($crl, CURLOPT_RETURNTRANSFER, true);
     $rest = curl_exec($crl) or die(curl_error($crl));
     curl_close($crl);
-    if(strpos($rest, "authentication failed")) {
-      flash($rest,"alert-danger");
-      return false;
+ 
+    echo "<br>Rest: $rest";
+  
+    if(strpos($rest, "sent")) {
+      flash(count($arrMobs)." Messages Sent","alert-success");
+      return true;
     }
     else {
-      flash(count($mobs)." Messages Sent","alert-success");
-      return true;
+      flash($rest,"alert-danger");
+      return false;
     }
   }
 
@@ -635,9 +639,9 @@ EOD;
                         "usercutoffdate"  => $goodLookingDate,
                         "cutofftime"      => $row->CUTOFFTIME,
                         "orderdate"       => $row->ORDERDATE,
-                        #"mob"            =>  $row->CUSTOMERMOBILE,
-                        "mob"             => "0481715080,0419814378",
-                        #"mob"             => "0481715080",
+                        #"mob"            => [$row->CUSTOMERMOBILE],
+                        #"mob"            => ["0481715080, 0419814378"],
+                        "mob"             => ["0481715080"],
                       ];
     }
     ibase_free_result($res);
@@ -690,10 +694,11 @@ EOD;
           "Thanks.\nUniFresh",
           $thisSoonShadow["cust"], $thisSoonShadow["usercutoffdate"]);
 
-        echo "<br>$msg<br>"; echo strlen($msg);
-        addAutoSMSLog($thisSoonShadow, $msg);
-        #sendMessageUsingEmail($msg, $thisSoonShadow["mob"]);
-        sendMessage($msg, $thisSoonShadow["mob"]);
+        echo "<br>$msg<br>".strlen($msg);
+        $ret = sendMessage($msg, $thisSoonShadow["mob"]);
+        if($ret) {
+          addAutoSMSLog($thisSoonShadow, $msg);
+        }
       }
       else {
         echo "Found $thisSoonShadow[shadownum] for $thisSoonShadow[cust]";
