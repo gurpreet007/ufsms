@@ -673,10 +673,11 @@ EOD;
     $half_sql = "insert into UF_LOG_AUTO_SMS values
       ('%s', '%s', '%s', '%s', '%s', '%s', '%s',current_timestamp)";
 
+    $mobs = substr(implode(",", $soonShadow["mob"]), 0, 19);
     $sql = sprintf($half_sql,
       $soonShadow["cust"], $soonShadow["shadownum"],
       $soonShadow["cutoffdate"], $soonShadow["cutofftime"],
-      $soonShadow["orderdate"], $soonShadow["mob"], $msg);
+      $soonShadow["orderdate"], $mobs, $msg);
 
     echo "<br>$sql";
     $dbh = dbConnect();
@@ -703,6 +704,7 @@ EOD;
         echo "<br>$msg<br>".strlen($msg);
         $ret = sendMessage($msg, $thisSoonShadow["mob"]);
         if($ret) {
+          echo "adding log";
           addAutoSMSLog($thisSoonShadow, $msg);
         }
       }
