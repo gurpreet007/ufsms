@@ -640,8 +640,8 @@ EOD;
                         "cutofftime"      => $row->CUTOFFTIME,
                         "orderdate"       => $row->ORDERDATE,
                         #"mob"            => [$row->CUSTOMERMOBILE],
-                        #"mob"            => ["0481715080, 0419814378"],
-                        "mob"             => ["0481715080"],
+                        "mob"            => ["0481715080", "0419814378"],
+                        #"mob"             => ["0481715080"],
                       ];
     }
     ibase_free_result($res);
