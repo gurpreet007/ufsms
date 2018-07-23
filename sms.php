@@ -616,9 +616,10 @@ EOD;
         CUSTOMERSTATUS = 'Active' and
         shadownumber is not null and
         customermobile is not null and
-        cutoffday = current_date
-        and cutofftime > current_time
-        and cutofftime < dateadd($hours hour to current_time)
+        cutoffday = current_date and
+        cutofftime > current_time and 
+        (cutofftime < dateadd($hours hour to current_time) or 
+          current_time > '23:00')
         order by
         cutoffday, cutofftime, SCHEDGROUP, SMETHOD, CUSTOMER, DISPATCHDAY";
 
