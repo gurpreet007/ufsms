@@ -635,19 +635,18 @@ EOD;
 
     $soonShadow = [];
     while($row = ibase_fetch_object($res)) {
-      $goodLookingDate =  substr($row->CUTOFFDATE,8,2).'-'.
-                          substr($row->CUTOFFDATE,5,2).'-'.
-                          substr($row->CUTOFFDATE,0,4);
+      $goodLookingDate =  substr($row->ORDERDATE,8,2).'-'.
+                          substr($row->ORDERDATE,5,2).'-'.
+                          substr($row->ORDERDATE,0,4);
       $soonShadow[] = [
                         "cust"            => $row->CUSTOMER,
                         "shadownum"       => $row->SHADOWNUMBER,
                         "cutoffdate"      => $row->CUTOFFDATE,
-                        "usercutoffdate"  => $goodLookingDate,
+                        "userorderdate"   => $goodLookingDate,
                         "cutofftime"      => $row->CUTOFFTIME,
                         "orderdate"       => $row->ORDERDATE,
                         #"mob"            => [$row->CUSTOMERMOBILE],
-                        #"mob"            => ["0481715080", "0419814378"],
-                        "mob"             => ["0481715080"],
+                        "mob"            => ["0481715080", "0419814378"],
                       ];
     }
     ibase_free_result($res);
@@ -699,7 +698,7 @@ EOD;
           "order for %s. Please avoid receiving shadow order by ".
           "placing one within one hour.".
           " Thanks.\nUniFresh",
-          $thisSoonShadow["cust"], $thisSoonShadow["usercutoffdate"]);
+          $thisSoonShadow["cust"], $thisSoonShadow["userorderdate"]);
 
         echo "<br>$msg<br>".strlen($msg);
         sendMessage($msg, $thisSoonShadow["mob"]);
