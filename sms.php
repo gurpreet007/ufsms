@@ -646,8 +646,8 @@ EOD;
                         "cutofftime"      => $row->CUTOFFTIME,
                         "orderdate"       => $row->ORDERDATE,
                         #"mob"            => [$row->CUSTOMERMOBILE],
-                        "mob"            => ["0481715080", "0419814378"],
-                        #"mob"             => ["0481715080"],
+                        #"mob"            => ["0481715080", "0419814378"],
+                        "mob"             => ["0481715080"],
                       ];
     }
     ibase_free_result($res);
@@ -702,11 +702,9 @@ EOD;
           $thisSoonShadow["cust"], $thisSoonShadow["usercutoffdate"]);
 
         echo "<br>$msg<br>".strlen($msg);
-        $ret = sendMessage($msg, $thisSoonShadow["mob"]);
-        if($ret) {
-          echo "adding log";
-          addAutoSMSLog($thisSoonShadow, $msg);
-        }
+        sendMessage($msg, $thisSoonShadow["mob"]);
+        echo "adding log";
+        addAutoSMSLog($thisSoonShadow, $msg);
       }
       else {
         echo "Found $thisSoonShadow[shadownum] for $thisSoonShadow[cust]";
