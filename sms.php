@@ -132,8 +132,12 @@ EOD;
       echo "</pre>";
     }
   
-    $status = $json["messages"][0]["status"];
-    $outgoingID = $json["messages"][0]["outgoing_id"];
+    #json structure differs if message consists of more chars 
+    #than can fit in a single message
+    $status = array_key_exists("messages", $json)? 
+                $json["messages"][0]["status"] : $json["status"];
+    $outgoingID = array_key_exists("messages", $json)? 
+                $json["messages"][0]["outgoing_id"] : $json["outgoing_id"];
 
     return ["status"=>$status, "outgoingID"=>$outgoingID];
   }
@@ -750,23 +754,36 @@ EOD;
     }
   }
 
-  function updateSMSStatus() {
-    $sql = "select * from UF_LOG_AUTO_SMS where cutoffdate = CURRENT_DATE 
-            and msgstatus = 'Processing'";
-    $strSqlUp = "update UF_LOG_AUTO_SMS 
-            set MSGSTATUS='%s' where OUTGOINGID='%s'";
 
+  function getProcessingSMS() {
+    $sql = "select * from UF_LOG_AUTO_SMS where cutoffdate = CURRENT_DATE-1 
+            and msgstatus = 'Processing'";
     $dbh = dbConnect();
     $res = ibase_query($dbh, $sql);
 
+    $arrOutID = [];
     while($row = ibase_fetch_object($res)) {
-      $newStatus = getMessageStatus($row->OUTGOINGID);
-      $sqlFull = sprintf($strSqlUp, $newStatus, $row->OUTGOINGID);
-      echo "<br>$sqlFull";
-      ibase_query($dbh, $sqlFull);
+      $arrOutID[] = $row->OUTGOINGID;
     }
     ibase_free_result($res);
     dbClose($dbh);
+    return $arrOutID;
+  }
+
+  function updateSMSStatus() {
+    $strSqlUp = "update UF_LOG_AUTO_SMS 
+            set MSGSTATUS='%s' where OUTGOINGID='%s'";
+
+    $arrOutID = getProcessingSMS();
+    foreach($arrOutID as $outID){
+      $newStatus = getMessageStatus($outID);
+      $sqlFull = sprintf($strSqlUp, $newStatus, $outID);
+      echo "<br>$sqlFull";
+      $dbh = dbConnect();
+      ibase_query($dbh, $sqlFull);
+      ibase_commit($dbh);
+      dbClose($dbh);
+    }
   }
 
   function createReportContent() {
@@ -914,7 +931,7 @@ EOD;
                   $_SESSION["usr"]);
               }
               else {
-                flash($rest,"alert-danger");
+                flash("Unable to send message","alert-danger");
               }
 
             }
