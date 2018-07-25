@@ -59,7 +59,27 @@ EOD;
     return $mac;
   }
 
+  function getMessageStatus($outgoingID) {
+    $action = "/v2/sms/$outgoingID";
+    $crl = curl_init("https://api.smsglobal.com".$action);
+    $header = [ 'Content-type: application/json',
+                'Accept: application/json',
+                'Authorization: '. getAuthHTTPHeader("GET", $action)];
+    curl_setopt($crl, CURLOPT_HTTPHEADER, $header);
+    curl_setopt($crl, CURLOPT_FRESH_CONNECT, true);
+    curl_setopt($crl, CURLOPT_RETURNTRANSFER, true);
+
+    $rest = curl_exec($crl) or die(curl_error($crl));
+
+    curl_close($crl);
+ 
+    $json = json_decode($rest, true);
+    return $json["messages"][0]["status"];
+  }
+
   function sendMessage($msg, $arrMobs) {
+    $debug = false;
+
     $action = "/v2/sms/";
     $crl = curl_init("https://api.smsglobal.com".$action);
     $header = [ 'Content-type: application/json',
@@ -68,15 +88,19 @@ EOD;
     curl_setopt($crl, CURLOPT_HTTPHEADER, $header);
 
     $arrMobs = array_unique($arrMobs);
-    echo "<br>Orig Mobs:";
-    print_r($arrMobs);
+    if($debug) {
+      echo "<br>Orig Mobs:";
+      print_r($arrMobs);
+    }
 
     $arrPrunedMobs = [];
     foreach($arrMobs as $mob) {
       $arrPrunedMobs[] = preg_replace("/[ a-zA-Z-.()]/", "", $mob);
     }
-    echo  "<br>Pruned Mobs:";
-    print_r($arrPrunedMobs);
+    if($debug) {
+      echo  "<br>Pruned Mobs:";
+      print_r($arrPrunedMobs);
+    }
 
     $data = [ 
               'destinations'  => $arrPrunedMobs,
@@ -91,16 +115,17 @@ EOD;
     $rest = curl_exec($crl) or die(curl_error($crl));
     curl_close($crl);
  
-    echo "<br>Rest: $rest";
+    $json = json_decode($rest, true);
+    if($debug) {
+      echo "<br>Rest JSON:<pre>";
+      print_r($json);
+      echo "</pre>";
+    }
   
-    if(strpos($rest, "sent")) {
-      flash(count($arrPrunedMobs)." Messages Sent","alert-success");
-      return true;
-    }
-    else {
-      flash($rest,"alert-danger");
-      return false;
-    }
+    $status = $json["messages"][0]["status"];
+    $outgoingID = $json["messages"][0]["outgoing_id"];
+
+    return ["status"=>$status, "outgoingID"=>$outgoingID];
   }
 
   function sendMessageUsingEmail($msg, $mobs) {
@@ -647,6 +672,7 @@ EOD;
                         "orderdate"       => $row->ORDERDATE,
                         #"mob"            => [$row->CUSTOMERMOBILE],
                         "mob"            => ["0481715080", "0419814378"],
+                        #"mob"            => ["0481715080"],
                       ];
     }
     ibase_free_result($res);
@@ -668,15 +694,18 @@ EOD;
     return $todayLog;
   }
 
-  function addAutoSMSLog($soonShadow, $msg) {
+  function addAutoSMSLog($soonShadow, $msg, $status) {
     $half_sql = "insert into UF_LOG_AUTO_SMS values
-      ('%s', '%s', '%s', '%s', '%s', '%s', '%s',current_timestamp)";
+      ('%s', '%s', '%s', '%s', '%s', '%s', '%s',current_timestamp, '%s', '%s')";
 
-    $mobs = substr(implode(",", $soonShadow["mob"]), 0, 19);
+    $mobs = substr(implode(",", $soonShadow["mob"]), 0, 49);
+    $outgoingID = $status["outgoingID"];
+    $sentStatus = $status["status"];
+  
     $sql = sprintf($half_sql,
       $soonShadow["cust"], $soonShadow["shadownum"],
       $soonShadow["cutoffdate"], $soonShadow["cutofftime"],
-      $soonShadow["orderdate"], $mobs, $msg);
+      $soonShadow["orderdate"], $mobs, $msg, $sentStatus, $outgoingID);
 
     echo "<br>$sql";
     $dbh = dbConnect();
@@ -701,9 +730,9 @@ EOD;
           $thisSoonShadow["cust"], $thisSoonShadow["userorderdate"]);
 
         echo "<br>$msg<br>".strlen($msg);
-        sendMessage($msg, $thisSoonShadow["mob"]);
-        echo "adding log";
-        addAutoSMSLog($thisSoonShadow, $msg);
+        $status = sendMessage($msg, $thisSoonShadow["mob"]);
+        echo "<br>Adding log:<br>";
+        addAutoSMSLog($thisSoonShadow, $msg, $status);
       }
       else {
         echo "Found $thisSoonShadow[shadownum] for $thisSoonShadow[cust]";
@@ -814,6 +843,20 @@ EOD;
     echo $xmlstr;
   }
 
+  function doTest() {
+    #getMessageStatus("3198979861");
+    #$jsonStr = '{"messages":[{"id":6594742834637759,"outgoing_id":3198902972,"origin":"61407580106","destination":"61481715080","message":"In association football, the FIFA World Cup concludes with France (team pictured) defeating Croatia in the final.","status":"sent","dateTime":"2018-07-25 10:08:26 +1000"}]} ';
+
+    #$jsonStr = sendMessage($str, ["0481715080"]);   
+    #$json= json_decode($jsonStr, true);
+    #echo "<pre>";
+    #print_r($json);
+    #echo "</pre>";
+    #echo "status: ".$json["messages"][0]["status"];
+    $msgRet = sendMessage("crazy fox jumped over the lazy dog and then slept for two hours.", ["0481715080"]);
+    print_r($msgRet);
+  }
+
   function start() {
     if($_SERVER["REQUEST_METHOD"] == "POST") {
       if(isset($_POST["btnSubmit"])) {
@@ -827,10 +870,18 @@ EOD;
             break;
           case "btnSendMsg":
             if(isset($_SESSION["data"]) && !empty($_POST["smsContent"])) {
-              if(sendMessage($_POST["smsContent"], 
-                  array_column($_SESSION["data"],1)))
+              $msgRet = sendMessage($_POST["smsContent"], 
+                  array_column($_SESSION["data"],1));
+
+              if($msgRet["status"] == "sent") {
+                flash("Messages Sent","alert-success");
                 makeLog($_POST["smsContent"], $_SESSION["data"], 
                   $_SESSION["usr"]);
+              }
+              else {
+                flash($rest,"alert-danger");
+              }
+
             }
             break;
           case "btnReport":
@@ -857,6 +908,10 @@ EOD;
       }
       if(isset($_GET["autoreport"]) and $_GET["autoreport"]=="yes") {
         sendAutoReport();
+        exit;
+      }
+      if(isset($_GET["test"]) and $_GET["test"]=="yes") {
+        doTest();
         exit;
       }
     }
