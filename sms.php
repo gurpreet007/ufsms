@@ -756,7 +756,7 @@ EOD;
 
 
   function getProcessingSMS() {
-    $sql = "select * from UF_LOG_AUTO_SMS where cutoffdate = CURRENT_DATE-1 
+    $sql = "select * from UF_LOG_AUTO_SMS where cutoffdate = CURRENT_DATE 
             and msgstatus = 'Processing'";
     $dbh = dbConnect();
     $res = ibase_query($dbh, $sql);
