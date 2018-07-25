@@ -750,7 +750,8 @@ EOD;
     $data = [];
     while($row = ibase_fetch_object($result)) {
       $data[] = [ $row->CUSTOMER, $row->CUTOFFTIME, 
-                  $row->MOBILE, $row->MSGTS];
+                  $row->MOBILE, $row->MSGSTATUS, 
+                  $row->OUTGOINGID, $row->MSGTS];
     }
     echo "Number of records: ". (count($data)-1);
     ibase_free_result($result);
@@ -787,6 +788,8 @@ EOD;
                         <th>Customer</th>
                         <th>CutOffTime</th>
                         <th>Mobile</th>
+                        <th>MsgStatus</th>
+                        <th>OutgoingID</th>
                         <th>MsgTimeStamp</th>
                       </tr>";
     foreach($data as $row) {
@@ -795,6 +798,8 @@ EOD;
       $table .= "<td>$row[1]</td>";
       $table .= "<td>$row[2]</td>";
       $table .= "<td>$row[3]</td>";
+      $table .= "<td>$row[4]</td>";
+      $table .= "<td>$row[5]</td>";
       $table .= "</tr>";
     }
     $table .= "
