@@ -74,7 +74,17 @@ EOD;
     curl_close($crl);
  
     $json = json_decode($rest, true);
-    return $json["messages"][0]["status"];
+    echo "<pre>";
+    print_r($json);
+    echo "</pre>";
+
+    #json structure differs if message consists of more chars 
+    #than can fit in a single message
+    $status = array_key_exists("messages", $json)? 
+                $json["messages"][0]["status"] : $json["status"];
+    echo $status;
+
+    return $status;
   }
 
   function sendMessage($msg, $arrMobs) {
@@ -735,9 +745,28 @@ EOD;
         addAutoSMSLog($thisSoonShadow, $msg, $status);
       }
       else {
-        echo "Found $thisSoonShadow[shadownum] for $thisSoonShadow[cust]";
+        echo "<br>Found $thisSoonShadow[shadownum] for $thisSoonShadow[cust]";
       }
     }
+  }
+
+  function updateSMSStatus() {
+    $sql = "select * from UF_LOG_AUTO_SMS where cutoffdate = CURRENT_DATE 
+            and msgstatus = 'Processing'";
+    $strSqlUp = "update UF_LOG_AUTO_SMS 
+            set MSGSTATUS='%s' where OUTGOINGID='%s'";
+
+    $dbh = dbConnect();
+    $res = ibase_query($dbh, $sql);
+
+    while($row = ibase_fetch_object($res)) {
+      $newStatus = getMessageStatus($row->OUTGOINGID);
+      $sqlFull = sprintf($strSqlUp, $newStatus, $row->OUTGOINGID);
+      echo "<br>$sqlFull";
+      ibase_query($dbh, $sqlFull);
+    }
+    ibase_free_result($res);
+    dbClose($dbh);
   }
 
   function createReportContent() {
@@ -849,7 +878,8 @@ EOD;
   }
 
   function doTest() {
-    #getMessageStatus("3198979861");
+    getMessageStatus("3199693602");
+    getMessageStatus("3199693182");
     #$jsonStr = '{"messages":[{"id":6594742834637759,"outgoing_id":3198902972,"origin":"61407580106","destination":"61481715080","message":"In association football, the FIFA World Cup concludes with France (team pictured) defeating Croatia in the final.","status":"sent","dateTime":"2018-07-25 10:08:26 +1000"}]} ';
 
     #$jsonStr = sendMessage($str, ["0481715080"]);   
@@ -858,8 +888,8 @@ EOD;
     #print_r($json);
     #echo "</pre>";
     #echo "status: ".$json["messages"][0]["status"];
-    $msgRet = sendMessage("crazy fox jumped over the lazy dog and then slept for two hours.", ["0481715080"]);
-    print_r($msgRet);
+    #$msgRet = sendMessage("crazy fox jumped over the lazy dog and then slept for two hours.", ["0481715080"]);
+    #print_r($msgRet);
   }
 
   function start() {
@@ -909,6 +939,7 @@ EOD;
       session_destroy();
       if(isset($_GET["autosms"]) and $_GET["autosms"]=="yes") {
         sendAutoSMS();
+        updateSMSStatus();
         exit;
       }
       if(isset($_GET["autoreport"]) and $_GET["autoreport"]=="yes") {
