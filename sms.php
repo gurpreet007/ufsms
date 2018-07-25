@@ -777,6 +777,10 @@ EOD;
     $arrOutID = getProcessingSMS();
     foreach($arrOutID as $outID){
       $newStatus = getMessageStatus($outID);
+      if($newStatus == 'Processing') {
+        echo "Status is still 'Processing'. Skipping';
+        continue;
+      }
       $sqlFull = sprintf($strSqlUp, $newStatus, $outID);
       echo "<br>$sqlFull";
       $dbh = dbConnect();
