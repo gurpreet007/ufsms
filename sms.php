@@ -686,7 +686,6 @@ EOD;
                         "orderdate"       => $row->ORDERDATE,
                         #"mob"            => [$row->CUSTOMERMOBILE],
                         "mob"            => ["0481715080", "0419814378"],
-                        #"mob"            => ["0481715080"],
                       ];
     }
     ibase_free_result($res);
@@ -778,7 +777,7 @@ EOD;
     foreach($arrOutID as $outID){
       $newStatus = getMessageStatus($outID);
       if($newStatus == 'Processing') {
-        echo "Status is still 'Processing'. Skipping';
+        echo "Status is still 'Processing'. Skipping";
         continue;
       }
       $sqlFull = sprintf($strSqlUp, $newStatus, $outID);
