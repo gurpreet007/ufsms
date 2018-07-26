@@ -756,7 +756,7 @@ EOD;
 
   function getProcessingSMS() {
     $sql = "select * from UF_LOG_AUTO_SMS where cutoffdate = CURRENT_DATE 
-            and msgstatus = 'Processing'";
+           and (msgstatus = 'Processing' or msgstatus is null or msgstatus='')";
     $dbh = dbConnect();
     $res = ibase_query($dbh, $sql);
 
@@ -898,8 +898,8 @@ EOD;
   }
 
   function doTest() {
-    getMessageStatus("3199693602");
-    getMessageStatus("3199693182");
+    getMessageStatus("3202668142");
+    getMessageStatus("3202668161");
     #$jsonStr = '{"messages":[{"id":6594742834637759,"outgoing_id":3198902972,"origin":"61407580106","destination":"61481715080","message":"In association football, the FIFA World Cup concludes with France (team pictured) defeating Croatia in the final.","status":"sent","dateTime":"2018-07-25 10:08:26 +1000"}]} ';
 
     #$jsonStr = sendMessage($str, ["0481715080"]);   
