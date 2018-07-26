@@ -29,7 +29,8 @@
     echo <<<EOD
     <div class='alert $type' alert-dismissible fade slow role='alert'> 
       <strong>$strongStr</strong> $msg 
-      <button type='button' class='close' data-dismiss='alert' aria-label='Close'>
+      <button type='button' class='close' 
+        data-dismiss='alert' aria-label='Close'>
         <span aria-hidden='true'>&times;</span>
       </button>
     </div>
@@ -674,14 +675,11 @@ EOD;
 
     $soonShadow = [];
     while($row = ibase_fetch_object($res)) {
-      $goodLookingDate =  substr($row->ORDERDATE,8,2).'-'.
-                          substr($row->ORDERDATE,5,2).'-'.
-                          substr($row->ORDERDATE,0,4);
       $soonShadow[] = [
                         "cust"            => $row->CUSTOMER,
                         "shadownum"       => $row->SHADOWNUMBER,
                         "cutoffdate"      => $row->CUTOFFDATE,
-                        "userorderdate"   => $goodLookingDate,
+                        "userorderdate"   => (int)substr($row->ORDERDATE,8,2),
                         "cutofftime"      => $row->CUTOFFTIME,
                         "orderdate"       => $row->ORDERDATE,
                         "mob"             => [$row->CUSTOMERMOBILE,
@@ -726,6 +724,16 @@ EOD;
     dbClose($dbh);
   }
 
+  function addOrd($number) {
+    #https://stackoverflow.com/questions/3109978/display-numbers-with-
+    #ordinal-suffix-in-php
+    $ends = array('th','st','nd','rd','th','th','th','th','th','th');
+    if ((($number % 100) >= 11) && (($number%100) <= 13))
+        return $number. 'th';
+    else
+        return $number. $ends[$number % 10];
+  }
+
   function sendAutoSMS() {
     $soonShadows = getSoonShadows("1" /*hours*/);
     echo "<pre>"; print_r($soonShadows); echo "</pre>";
@@ -740,7 +748,7 @@ EOD;
           "order for %s. Please avoid receiving shadow order by ".
           "placing one within one hour.".
           " Thanks.\nUniFresh",
-          $thisSoonShadow["cust"], $thisSoonShadow["userorderdate"]);
+          $thisSoonShadow["cust"], addOrd($thisSoonShadow["userorderdate"]));
 
         echo "<br>$msg<br>".strlen($msg);
         $status = sendMessage($msg, $thisSoonShadow["mob"]);
@@ -752,7 +760,6 @@ EOD;
       }
     }
   }
-
 
   function getProcessingSMS() {
     $sql = "select * from UF_LOG_AUTO_SMS where cutoffdate = CURRENT_DATE 
