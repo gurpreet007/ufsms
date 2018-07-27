@@ -763,7 +763,10 @@ EOD;
 
   function getProcessingSMS() {
     $sql = "select * from UF_LOG_AUTO_SMS where cutoffdate = CURRENT_DATE 
-           and (msgstatus = 'Processing' or msgstatus is null or msgstatus='')";
+           and (msgstatus = 'Processing' or 
+                msgstatus = 'sent' or
+                msgstatus is null or 
+                msgstatus='')";
     $dbh = dbConnect();
     $res = ibase_query($dbh, $sql);
 
@@ -783,10 +786,13 @@ EOD;
     $arrOutID = getProcessingSMS();
     foreach($arrOutID as $outID){
       $newStatus = getMessageStatus($outID);
-      if($newStatus == 'Processing') {
-        echo "Status is still 'Processing'. Skipping";
+      
+      if($newStatus == 'Processing' or
+         $newStatus == 'sent') {
+        echo "Status is still '$newStatus'. Skipping";
         continue;
       }
+
       $sqlFull = sprintf($strSqlUp, $newStatus, $outID);
       echo "<br>$sqlFull";
       $dbh = dbConnect();
