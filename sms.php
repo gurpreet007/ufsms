@@ -633,7 +633,7 @@ EOD;
           salesinvoicegrouping.invoicenumber and
           salesinvoicegrouping.ordernumber = salesheader.ordernumber
           and salesinvoiceheader.INVOICEDATE >= current_date - 2
-          and salesinvoiceheader.INVOICEDATE <= current_date + 3
+          and salesinvoiceheader.INVOICEDATE <= current_date + 6
         ) SIH on CASE when ALTEREDSCHED.STATUS is null then DISPATCHDAY
         else NEWDISPATCH END = SIH.SIHDATE and
         SIH.SIHCUST = REGULARSCHED.CUSTOMER
