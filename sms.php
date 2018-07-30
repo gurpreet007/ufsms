@@ -514,9 +514,6 @@ EOD;
         CUSTOMERSTATUS,
         CUSTOMERMOBILE,
         REGULARSCHED.CUSTOMER,
-        CGROUP,
-        SCHEDGROUP,
-        SMETHOD,
         CASE when ALTEREDSCHED.STATUS is null then
           CUTOFFDAY else NEWCUTOFFDAY END as \"CUTOFFDAY\",
         CASE when NEWCUTOFFTIME is null then
@@ -661,7 +658,7 @@ EOD;
         (cutofftime < dateadd($hours hour to current_time) or 
           current_time > '23:00')
         order by
-        cutoffday, cutofftime, SCHEDGROUP, SMETHOD, CUSTOMER, DISPATCHDAY";
+        cutoffday, cutofftime, CUSTOMER, DISPATCHDAY";
 
     #echo $sql;
     $dbh = dbConnect();
