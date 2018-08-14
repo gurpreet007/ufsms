@@ -679,8 +679,7 @@ EOD;
                         "userorderdate"   => (int)substr($row->ORDERDATE,8,2),
                         "cutofftime"      => $row->CUTOFFTIME,
                         "orderdate"       => $row->ORDERDATE,
-                        "mob"             => [$row->CUSTOMERMOBILE,
-                                              "0481715080"],
+                        "mob"             => [$row->CUSTOMERMOBILE],
                       ];
     }
     ibase_free_result($res);
